@@ -8,16 +8,16 @@ interface ProceduralAvatarProps {
   position: [number, number, number];
 }
 
-// Cangrejo 3D (Tenacitas)
+// 3D crab avatar
 function CrabAvatar({ color, position }: { color: string; position: [number, number, number] }) {
   return (
     <group position={position}>
-      {/* Cuerpo */}
+      {/* Body */}
       <Sphere args={[0.25, 16, 16]} position={[0, 0, 0]} castShadow>
         <meshStandardMaterial color={color} />
       </Sphere>
       
-      {/* Ojos */}
+      {/* Eyes */}
       <Sphere args={[0.08, 8, 8]} position={[-0.12, 0.15, 0.2]} castShadow>
         <meshStandardMaterial color="white" />
       </Sphere>
@@ -25,7 +25,7 @@ function CrabAvatar({ color, position }: { color: string; position: [number, num
         <meshStandardMaterial color="white" />
       </Sphere>
       
-      {/* Pupilas */}
+      {/* Pupils */}
       <Sphere args={[0.04, 8, 8]} position={[-0.12, 0.15, 0.26]} castShadow>
         <meshStandardMaterial color="black" />
       </Sphere>
@@ -33,7 +33,7 @@ function CrabAvatar({ color, position }: { color: string; position: [number, num
         <meshStandardMaterial color="black" />
       </Sphere>
       
-      {/* Pinzas */}
+      {/* Claws */}
       <group position={[-0.3, 0, 0]} rotation={[0, 0, -0.3]}>
         <Cylinder args={[0.04, 0.04, 0.3]} rotation={[0, 0, Math.PI / 2]} castShadow>
           <meshStandardMaterial color={color} />
@@ -52,7 +52,7 @@ function CrabAvatar({ color, position }: { color: string; position: [number, num
         </Box>
       </group>
       
-      {/* Patas */}
+      {/* Legs */}
       {[-0.15, -0.05, 0.05, 0.15].map((x, i) => (
         <Cylinder key={i} args={[0.02, 0.02, 0.15]} position={[x, -0.2, 0]} castShadow>
           <meshStandardMaterial color={color} />
@@ -66,12 +66,12 @@ function CrabAvatar({ color, position }: { color: string; position: [number, num
 function RobotAvatar({ color, position }: { color: string; position: [number, number, number] }) {
   return (
     <group position={position}>
-      {/* Cabeza */}
+      {/* Head */}
       <Box args={[0.25, 0.25, 0.25]} position={[0, 0.35, 0]} castShadow>
         <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
       </Box>
       
-      {/* Antena */}
+      {/* Antenna */}
       <Cylinder args={[0.02, 0.02, 0.15]} position={[0, 0.55, 0]} castShadow>
         <meshStandardMaterial color="#ffcc00" emissive="#ffcc00" emissiveIntensity={0.5} />
       </Cylinder>
@@ -79,7 +79,7 @@ function RobotAvatar({ color, position }: { color: string; position: [number, nu
         <meshStandardMaterial color="#ffcc00" emissive="#ffcc00" emissiveIntensity={0.8} />
       </Sphere>
       
-      {/* Ojos (LEDs) */}
+      {/* Eyes: LEDs */}
       <Box args={[0.08, 0.06, 0.02]} position={[-0.08, 0.38, 0.13]} castShadow>
         <meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={1} />
       </Box>
@@ -87,17 +87,17 @@ function RobotAvatar({ color, position }: { color: string; position: [number, nu
         <meshStandardMaterial color="#00ff00" emissive="#00ff00" emissiveIntensity={1} />
       </Box>
       
-      {/* Cuerpo */}
+      {/* Body */}
       <Box args={[0.3, 0.4, 0.2]} position={[0, 0, 0]} castShadow>
         <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
       </Box>
       
-      {/* Panel frontal */}
+      {/* Front panel */}
       <Box args={[0.2, 0.25, 0.02]} position={[0, 0, 0.11]} castShadow>
         <meshStandardMaterial color="#1a1a1a" />
       </Box>
       
-      {/* Brazos */}
+      {/* Arms */}
       <Cylinder args={[0.05, 0.05, 0.35]} position={[-0.2, -0.05, 0]} castShadow>
         <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
       </Cylinder>
@@ -105,7 +105,7 @@ function RobotAvatar({ color, position }: { color: string; position: [number, nu
         <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
       </Cylinder>
       
-      {/* Manos (herramientas) */}
+      {/* Hands: tools */}
       <Box args={[0.08, 0.08, 0.08]} position={[-0.2, -0.25, 0]} castShadow>
         <meshStandardMaterial color="#ff6600" />
       </Box>
@@ -113,7 +113,7 @@ function RobotAvatar({ color, position }: { color: string; position: [number, nu
         <meshStandardMaterial color="#ff6600" />
       </Box>
       
-      {/* Piernas */}
+      {/* Legs */}
       <Cylinder args={[0.06, 0.06, 0.3]} position={[-0.08, -0.35, 0]} castShadow>
         <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
       </Cylinder>
@@ -124,7 +124,7 @@ function RobotAvatar({ color, position }: { color: string; position: [number, nu
   );
 }
 
-// Humanoide simple (base para profesor, ejecutivo, etc.)
+// Simple humanoid base for professor, executive, etc.
 function HumanoidAvatar({ 
   color, 
   position, 
@@ -136,17 +136,17 @@ function HumanoidAvatar({
 }) {
   return (
     <group position={position}>
-      {/* Cabeza */}
+      {/* Head */}
       <Sphere args={[0.12, 16, 16]} position={[0, 0.4, 0]} castShadow>
         <meshStandardMaterial color="#ffdbac" />
       </Sphere>
       
-      {/* Pelo/gorro */}
+      {/* Hair/hat */}
       <Sphere args={[0.13, 16, 16]} position={[0, 0.45, 0]} castShadow>
         <meshStandardMaterial color="#3d2817" />
       </Sphere>
       
-      {/* Ojos */}
+      {/* Eyes */}
       <Sphere args={[0.02, 8, 8]} position={[-0.05, 0.42, 0.11]} castShadow>
         <meshStandardMaterial color="black" />
       </Sphere>
@@ -154,12 +154,12 @@ function HumanoidAvatar({
         <meshStandardMaterial color="black" />
       </Sphere>
       
-      {/* Cuerpo */}
+      {/* Body */}
       <Box args={[0.25, 0.35, 0.15]} position={[0, 0.15, 0]} castShadow>
         <meshStandardMaterial color={color} />
       </Box>
       
-      {/* Brazos */}
+      {/* Arms */}
       <Cylinder args={[0.04, 0.04, 0.3]} position={[-0.16, 0.1, 0]} castShadow>
         <meshStandardMaterial color={color} />
       </Cylinder>
@@ -167,7 +167,7 @@ function HumanoidAvatar({
         <meshStandardMaterial color={color} />
       </Cylinder>
       
-      {/* Piernas */}
+      {/* Legs */}
       <Cylinder args={[0.05, 0.05, 0.3]} position={[-0.07, -0.15, 0]} castShadow>
         <meshStandardMaterial color="#2c5aa0" />
       </Cylinder>
@@ -175,7 +175,7 @@ function HumanoidAvatar({
         <meshStandardMaterial color="#2c5aa0" />
       </Cylinder>
       
-      {/* Accesorios */}
+      {/* Accessories */}
       {accessory === 'book' && (
         <Box args={[0.12, 0.15, 0.03]} position={[0.2, 0, 0.1]} rotation={[0, -0.3, 0]} castShadow>
           <meshStandardMaterial color="#8B4513" />

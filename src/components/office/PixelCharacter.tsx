@@ -28,10 +28,9 @@ export function PixelCharacter({
         setTyping((prev) => !prev);
       }, 800);
       return () => clearInterval(typingInterval);
-    } else {
-      setTyping(false);
     }
   }, [agent.isActive]);
+  const displayTyping = agent.isActive && typing;
 
   const getDeskStyle = () => {
     switch (deskType) {
@@ -226,7 +225,7 @@ export function PixelCharacter({
           left: deskType === "large" ? "40px" : "30px",
           fontSize: "48px",
           filter: agent.isActive ? "none" : "grayscale(50%) opacity(70%)",
-          animation: typing ? "pixel-typing 0.8s infinite" : "pixel-idle 3s infinite",
+          animation: displayTyping ? "pixel-typing 0.8s infinite" : "pixel-idle 3s infinite",
         }}
       >
         {agent.emoji}

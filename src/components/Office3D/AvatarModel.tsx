@@ -1,6 +1,5 @@
 'use client';
 
-import { useGLTF } from '@react-three/drei';
 import { Sphere } from '@react-three/drei';
 import type { AgentConfig } from './agentsConfig';
 import { useEffect, useState } from 'react';
@@ -21,7 +20,6 @@ export default function AvatarModel({ agent, position }: AvatarModelProps) {
       .catch(() => setExists(false));
   }, [modelPath]);
 
-  // If model doesn't exist, return fallback sphere
   if (!exists) {
     return (
       <Sphere
@@ -38,17 +36,17 @@ export default function AvatarModel({ agent, position }: AvatarModelProps) {
     );
   }
 
-  // Load and display the GLB model
-  const { scene } = useGLTF(modelPath);
-  
   return (
-    <primitive
-      object={scene.clone()}
+    <Sphere
+      args={[0.3, 16, 16]}
       position={position}
-      scale={0.8} // Ready Player Me avatars are ~1.8m tall, scale to fit desk
-      rotation={[0, Math.PI, 0]} // Face forward
       castShadow
-      receiveShadow
-    />
+    >
+      <meshStandardMaterial
+        color={agent.color}
+        emissive={agent.color}
+        emissiveIntensity={0.3}
+      />
+    </Sphere>
   );
 }

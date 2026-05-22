@@ -3,6 +3,7 @@
 import { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
+import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 
 interface FirstPersonControlsProps {
@@ -11,7 +12,7 @@ interface FirstPersonControlsProps {
 
 export default function FirstPersonControls({ moveSpeed = 5 }: FirstPersonControlsProps) {
   const { camera } = useThree();
-  const controlsRef = useRef<any>(null);
+  const controlsRef = useRef<PointerLockControlsImpl | null>(null);
   
   const moveState = useRef({
     forward: false,
@@ -23,8 +24,6 @@ export default function FirstPersonControls({ moveSpeed = 5 }: FirstPersonContro
   });
 
   const velocity = useRef(new THREE.Vector3());
-  const direction = useRef(new THREE.Vector3());
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       switch (event.code) {
@@ -122,9 +121,11 @@ export default function FirstPersonControls({ moveSpeed = 5 }: FirstPersonContro
     camera.position.add(movement);
 
     // Boundaries (keep camera inside office)
-    camera.position.x = Math.max(-9, Math.min(9, camera.position.x));
-    camera.position.y = Math.max(1, Math.min(8, camera.position.y));
-    camera.position.z = Math.max(-8, Math.min(8, camera.position.z));
+    const boundedPosition = camera.position.clone();
+    boundedPosition.x = Math.max(-9, Math.min(9, boundedPosition.x));
+    boundedPosition.y = Math.max(1, Math.min(8, boundedPosition.y));
+    boundedPosition.z = Math.max(-8, Math.min(8, boundedPosition.z));
+    camera.position.copy(boundedPosition);
   });
 
   return <PointerLockControls ref={controlsRef} />;

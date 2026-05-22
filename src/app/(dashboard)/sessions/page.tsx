@@ -207,18 +207,14 @@ function SessionDetail({
   onClose: () => void;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(session.sessionId));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session.sessionId) {
-      setLoading(false);
-      setError("No session file available");
       return;
     }
 
-    setLoading(true);
-    setError(null);
     fetch(`/api/sessions?id=${session.sessionId}`)
       .then((r) => r.json())
       .then((data) => {
@@ -232,6 +228,7 @@ function SessionDetail({
   const userCount = messages.filter((m) => m.type === "user").length;
   const assistantCount = messages.filter((m) => m.type === "assistant").length;
   const toolCount = messages.filter((m) => m.type === "tool_use").length;
+  const displayError = session.sessionId ? error : "No session file available";
 
   return (
     <div
@@ -410,7 +407,7 @@ function SessionDetail({
             </div>
           )}
 
-          {error && (
+          {displayError && (
             <div
               style={{
                 display: "flex",
@@ -424,11 +421,11 @@ function SessionDetail({
               }}
             >
               <AlertTriangle style={{ width: "16px", height: "16px" }} />
-              {error}
+              {displayError}
             </div>
           )}
 
-          {!loading && !error && messages.length === 0 && (
+          {!loading && !displayError && messages.length === 0 && (
             <div
               style={{
                 textAlign: "center",
@@ -647,6 +644,11 @@ export default function SessionsPage() {
   // Stats
   const totalTokens = sessions.reduce((sum, s) => sum + s.totalTokens, 0);
   const uniqueModels = [...new Set(sessions.map((s) => s.model))];
+  const abortedCount = sessions.filter((s) => s.aborted).length;
+  const highContextCount = sessions.filter((s) => (s.contextUsedPercent || 0) >= 80).length;
+  const activeCount = sessions.filter((s) => s.ageMs <= 30 * 60 * 1000).length;
+  const staleTokenCount = sessions.filter((s) => s.totalTokens > 0 && s.contextUsedPercent === null).length;
+  const attentionCount = abortedCount + highContextCount;
 
   return (
     <>
@@ -674,7 +676,7 @@ export default function SessionsPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
             gap: "0.75rem",
             marginBottom: "1.5rem",
           }}
@@ -693,16 +695,22 @@ export default function SessionsPage() {
               color: "#60a5fa",
             },
             {
-              label: "Cron Runs",
-              value: counts.cron || 0,
+              label: "Active Now",
+              value: activeCount,
               icon: Clock,
-              color: "#a78bfa",
+              color: activeCount > 0 ? "#4ade80" : "var(--text-muted)",
             },
             {
               label: "Models Used",
               value: uniqueModels.length,
               icon: Bot,
-              color: "#4ade80",
+              color: "#a78bfa",
+            },
+            {
+              label: "Needs Attention",
+              value: attentionCount,
+              icon: AlertTriangle,
+              color: attentionCount > 0 ? "var(--warning)" : "var(--success)",
             },
           ].map(({ label, value, icon: Icon, color }) => (
             <div
@@ -747,6 +755,32 @@ export default function SessionsPage() {
             </div>
           ))}
         </div>
+
+        {(attentionCount > 0 || staleTokenCount > 0) && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.875rem 1rem",
+              borderRadius: "0.75rem",
+              backgroundColor: "color-mix(in srgb, var(--warning) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--warning) 30%, transparent)",
+              color: "var(--text-primary)",
+              marginBottom: "1rem",
+              fontSize: "0.875rem",
+            }}
+          >
+            <AlertTriangle style={{ width: "18px", height: "18px", color: "var(--warning)", flexShrink: 0 }} />
+            <span>
+              {abortedCount > 0 && `${abortedCount} aborted session${abortedCount === 1 ? "" : "s"}`}
+              {abortedCount > 0 && highContextCount > 0 ? " · " : ""}
+              {highContextCount > 0 && `${highContextCount} session${highContextCount === 1 ? "" : "s"} above 80% context`}
+              {(abortedCount > 0 || highContextCount > 0) && staleTokenCount > 0 ? " · " : ""}
+              {staleTokenCount > 0 && `${staleTokenCount} session${staleTokenCount === 1 ? "" : "s"} need fresh context data`}
+            </span>
+          </div>
+        )}
 
         {/* Filters + Search */}
         <div

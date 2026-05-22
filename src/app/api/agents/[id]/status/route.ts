@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
+import { OPENCLAW_DIR } from "@/lib/paths";
+
+interface AgentConfigEntry {
+  id: string;
+  name?: string;
+  workspace: string;
+  model?: { primary?: string };
+  subagents?: { allowAgents?: string[] };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +21,11 @@ export async function GET(
     const { id } = await params;
 
     // Read openclaw config
-    const configPath = (process.env.OPENCLAW_DIR || "/root/.openclaw") + "/openclaw.json";
+    const configPath = join(OPENCLAW_DIR, "openclaw.json");
     const config = JSON.parse(readFileSync(configPath, "utf-8"));
 
     // Find agent
-    const agent = config.agents.list.find((a: any) => a.id === id);
+    const agent = (config.agents.list as AgentConfigEntry[]).find((a) => a.id === id);
     if (!agent) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
@@ -41,13 +50,13 @@ export async function GET(
         })
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 7);
-    } catch (e) {
+    } catch {
       // Memory directory doesn't exist
     }
 
     // Get session info (from OpenClaw API if available)
     // For now, we return mock data
-    const sessions: Array<any> = [];
+    const sessions: Array<Record<string, unknown>> = [];
 
     // Get telegram account info
     const telegramAccount = config.channels?.telegram?.accounts?.[id];

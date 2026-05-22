@@ -1,44 +1,51 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { StickyNote, Save, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { StickyNote, Trash2 } from "lucide-react";
 
 const STORAGE_KEY = "tenacitas-notepad";
 
+function readStoredNote(): { text: string; lastSaved: Date | null } {
+  if (typeof window === "undefined") {
+    return { text: "", lastSaved: null };
+  }
+
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return { text: "", lastSaved: null };
+
+    const data = JSON.parse(stored) as { text?: string; ts?: string };
+    return {
+      text: data.text || "",
+      lastSaved: data.ts ? new Date(data.ts) : null,
+    };
+  } catch {
+    return { text: "", lastSaved: null };
+  }
+}
+
 export function Notepad() {
-  const [text, setText] = useState("");
+  const [storedNote] = useState(readStoredNote);
+  const [text, setText] = useState(storedNote.text);
   const [saved, setSaved] = useState(true);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(storedNote.lastSaved);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        setText(data.text || "");
-        setLastSaved(data.ts ? new Date(data.ts) : null);
-      }
-    } catch {}
-  }, []);
-
-  // Auto-save after 2 seconds of no typing
-  useEffect(() => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    setSaved(false);
-    saveTimerRef.current = setTimeout(() => {
-      save();
-    }, 2000);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [text]);
-
-  const save = () => {
+  const save = useCallback(() => {
     const now = new Date();
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ text, ts: now.toISOString() }));
     setSaved(true);
     setLastSaved(now);
-  };
+  }, [text]);
+
+  // Auto-save after 2 seconds of no typing
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      save();
+    }, 2000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [text, save]);
 
   const clear = () => {
     setText("");
@@ -87,7 +94,10 @@ export function Notepad() {
       {/* Textarea */}
       <textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          setSaved(false);
+        }}
         placeholder="Quick notes, reminders, ideas..."
         style={{
           flex: 1,

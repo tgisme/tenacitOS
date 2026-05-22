@@ -10,12 +10,12 @@ interface VoxelKeyboardProps {
 export default function VoxelKeyboard({ position, rotation = [0, 0, 0] }: VoxelKeyboardProps) {
   return (
     <group position={position} rotation={rotation}>
-      {/* Base del teclado */}
+      {/* Keyboard base */}
       <Box args={[0.8, 0.04, 0.3]} position={[0, 0, 0]} castShadow receiveShadow>
         <meshStandardMaterial color="#2d3748" roughness={0.8} />
       </Box>
 
-      {/* Fila de teclas - superior (números) */}
+      {/* Top key row: numbers */}
       {Array.from({ length: 10 }).map((_, i) => (
         <Box
           key={`top-${i}`}
@@ -27,7 +27,7 @@ export default function VoxelKeyboard({ position, rotation = [0, 0, 0] }: VoxelK
         </Box>
       ))}
 
-      {/* Fila de teclas - media (QWERTY) */}
+      {/* Middle key row: QWERTY */}
       {Array.from({ length: 9 }).map((_, i) => (
         <Box
           key={`mid-${i}`}
@@ -39,7 +39,7 @@ export default function VoxelKeyboard({ position, rotation = [0, 0, 0] }: VoxelK
         </Box>
       ))}
 
-      {/* Fila de teclas - inferior (ASDF) */}
+      {/* Bottom key row: ASDF */}
       {Array.from({ length: 8 }).map((_, i) => (
         <Box
           key={`low-${i}`}
@@ -51,7 +51,7 @@ export default function VoxelKeyboard({ position, rotation = [0, 0, 0] }: VoxelK
         </Box>
       ))}
 
-      {/* Barra espaciadora */}
+      {/* Spacebar */}
       <Box args={[0.35, 0.03, 0.06]} position={[0, 0.035, 0.13]} castShadow>
         <meshStandardMaterial color="#374151" />
       </Box>

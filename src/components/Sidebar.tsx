@@ -20,8 +20,6 @@ import {
   Menu,
   X,
   Users,
-  Gamepad2,
-  GitBranch,
   Workflow,
   Zap,
   Server,
@@ -31,10 +29,16 @@ import {
 } from "lucide-react";
 import { getAgentDisplayName } from "@/config/branding";
 
-const navItems = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  highlight?: boolean;
+};
+
+const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/agents", label: "Agents", icon: Users },
-  { href: "/office", label: "🎮 Office", icon: Gamepad2, highlight: true },
   { href: "/actions", label: "Quick Actions", icon: Zap },
   { href: "/system", label: "System", icon: Server },
   { href: "/logs", label: "Live Logs", icon: Terminal },
@@ -72,13 +76,6 @@ export function Sidebar() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
-
-  // Close sidebar when navigating on mobile
-  useEffect(() => {
-    if (isMobile) {
-      setIsOpen(false);
-    }
-  }, [pathname, isMobile]);
 
   // Prevent scroll when sidebar is open on mobile
   useEffect(() => {
@@ -223,6 +220,7 @@ export function Sidebar() {
                 <li key={item.href}>
                   <Link
                     href={item.href}
+                    onClick={closeSidebar}
                     className={`nav-item w-full ${isActive ? "active" : ""}`}
                     style={
                       !isActive
@@ -305,7 +303,7 @@ export function Sidebar() {
             }}
           >
             <LogOut className="w-4 h-4" />
-            <span className="text-sm">Cerrar sesión</span>
+            <span className="text-sm">Sign out</span>
           </button>
         </div>
       </aside>

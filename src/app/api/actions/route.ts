@@ -4,13 +4,25 @@
  * Available actions: git-status, restart-gateway, clear-temp, usage-stats, heartbeat
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { logActivity } from '@/lib/activities-db';
+import { OPENCLAW_DIR, OPENCLAW_WORKSPACE } from '@/lib/paths';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
-const WORKSPACE = process.env.OPENCLAW_DIR ? `${process.env.OPENCLAW_DIR}/workspace` : '/root/.openclaw/workspace';
+const WORKSPACE = OPENCLAW_WORKSPACE;
+const ACTION_TIMEOUT_MS = 20000;
+const DANGEROUS_ACTIONS = new Set([
+  'restart-gateway',
+  'restart-dashboard',
+  'clear-stale-sessions',
+  'clear-temp',
+]);
+const USER_SERVICES = new Set(['openclaw-gateway', 'mission-control']);
 
 interface ActionResult {
   action: string;
@@ -48,67 +60,71 @@ async function runAction(action: string): Promise<ActionResult> {
       }
 
       case 'restart-gateway': {
-        const { stdout, stderr } = await execAsync('systemctl restart openclaw-gateway 2>&1 || echo "Service not found"');
-        output = stdout || stderr || 'Restart command executed';
-        // Also check status
-        try {
-          const { stdout: status } = await execAsync('systemctl is-active openclaw-gateway 2>&1 || echo "unknown"');
-          output += `\nStatus: ${status.trim()}`;
-        } catch {}
+        output = await restartSystemdService('openclaw-gateway');
+        break;
+      }
+
+      case 'restart-dashboard': {
+        output = await restartDashboard();
+        break;
+      }
+
+      case 'gateway-logs': {
+        const { stdout } = await execFileAsync('journalctl', ['--user', '-u', 'openclaw-gateway', '-n', '160', '--no-pager'], {
+          timeout: ACTION_TIMEOUT_MS,
+          encoding: 'utf-8',
+        });
+        output = stdout.trim() || 'No gateway logs returned';
+        break;
+      }
+
+      case 'clear-stale-sessions': {
+        output = clearStaleSessions();
         break;
       }
 
       case 'clear-temp': {
         const commands = [
           'find /tmp -maxdepth 1 -type f -mtime +1 -delete 2>/dev/null; echo "Cleaned /tmp"',
-          `find "${WORKSPACE}" -name "*.tmp" -o -name "*.bak" | head -20 | xargs rm -f 2>/dev/null; echo "Cleaned tmp/bak files"`,
-          'find /root/.pm2/logs -name "*.log" -size +50M -exec truncate -s 10M {} \\; 2>/dev/null; echo "Trimmed large PM2 logs"',
+          `find "${WORKSPACE}" \\( -name "*.tmp" -o -name "*.bak" \\) -type f | head -20 | xargs -r trash 2>/dev/null; echo "Moved workspace tmp/bak files to trash where available"`,
+          `find "${OPENCLAW_DIR}/logs" -name "*.log" -size +50M -exec truncate -s 10M {} \\; 2>/dev/null; echo "Trimmed large OpenClaw logs"`,
         ];
-        const results = await Promise.all(commands.map((cmd) => execAsync(cmd).then((r) => r.stdout).catch((e) => e.message)));
+        const results = await Promise.all(commands.map((cmd) => execAsync(cmd, { timeout: ACTION_TIMEOUT_MS }).then((r) => r.stdout).catch((e) => e.message)));
         output = results.join('\n');
         break;
       }
 
       case 'usage-stats': {
-        const { stdout: du } = await execAsync(`du -sh "${WORKSPACE}" 2>/dev/null || echo "N/A"`);
-        const { stdout: df } = await execAsync('df -h / | tail -1');
-        const { stdout: mem } = await execAsync('free -h | head -2');
-        const { stdout: cpu } = await execAsync("top -bn1 | grep 'Cpu(s)' | head -1");
-        const { stdout: uptime } = await execAsync('uptime -p');
-        output = `Workspace: ${du.trim()}\n\nDisk: ${df.trim()}\n\nMemory:\n${mem.trim()}\n\nCPU: ${cpu.trim()}\n\nUptime: ${uptime.trim()}`;
+        const { stdout: du } = await execAsync(`du -sh "${WORKSPACE}" 2>/dev/null || echo "N/A"`, { timeout: ACTION_TIMEOUT_MS });
+        const { stdout: df } = await execFileAsync('df', ['-h', '/'], { timeout: ACTION_TIMEOUT_MS, encoding: 'utf-8' });
+        const { stdout: mem } = await execFileAsync('free', ['-h'], { timeout: ACTION_TIMEOUT_MS, encoding: 'utf-8' });
+        const { stdout: uptime } = await execFileAsync('uptime', ['-p'], { timeout: ACTION_TIMEOUT_MS, encoding: 'utf-8' });
+        output = `Workspace: ${du.trim()}\n\nDisk:\n${df.trim()}\n\nMemory:\n${mem.split('\n').slice(0, 2).join('\n').trim()}\n\nUptime: ${uptime.trim()}`;
         break;
       }
 
       case 'heartbeat': {
-        // Check all critical services
-        const services = ['mission-control'];
-        const pm2services = ['classvault', 'content-vault', 'brain'];
         const results: string[] = [];
 
-        for (const svc of services) {
-          const { stdout } = await execAsync(`systemctl is-active ${svc} 2>/dev/null || echo "inactive"`);
+        try {
+          const { stdout } = await execFileAsync('systemctl', ['--user', 'is-active', 'openclaw-gateway'], {
+            timeout: ACTION_TIMEOUT_MS,
+            encoding: 'utf-8',
+          });
           const status = stdout.trim();
-          results.push(`${status === 'active' ? '✅' : '❌'} ${svc}: ${status}`);
+          results.push(`${status === 'active' ? 'OK' : 'WARN'} openclaw-gateway: ${status}`);
+        } catch {
+          results.push('WARN openclaw-gateway: inactive or unavailable');
         }
 
         try {
-          const { stdout: pm2 } = await execAsync('pm2 jlist 2>/dev/null');
-          const pm2list = JSON.parse(pm2);
-          for (const svc of pm2services) {
-            const proc = pm2list.find((p: { name: string }) => p.name === svc);
-            const status = proc?.pm2_env?.status || 'not found';
-            results.push(`${status === 'online' ? '✅' : '❌'} ${svc} (pm2): ${status}`);
-          }
+          const { stdout } = await execFileAsync('curl', ['-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', 'http://127.0.0.1:3000'], {
+            timeout: ACTION_TIMEOUT_MS,
+            encoding: 'utf-8',
+          });
+          results.push(`OK dashboard-local: HTTP ${stdout.trim()}`);
         } catch {
-          results.push('⚠️ PM2: could not connect');
-        }
-
-        // Ping the main site
-        try {
-          const { stdout: ping } = await execAsync('curl -s -o /dev/null -w "%{http_code}" --max-time 5 https://tenacitas.cazaustre.dev');
-          results.push(`\n🌐 tenacitas.cazaustre.dev: HTTP ${ping.trim()}`);
-        } catch {
-          results.push('\n🌐 tenacitas.cazaustre.dev: unreachable');
+          results.push('WARN dashboard-local: unreachable');
         }
 
         output = results.join('\n');
@@ -116,7 +132,10 @@ async function runAction(action: string): Promise<ActionResult> {
       }
 
       case 'npm-audit': {
-        const { stdout, stderr } = await execAsync(`cd "${WORKSPACE}/mission-control" && npm audit --json 2>/dev/null | node -e "const d=require('fs').readFileSync('/dev/stdin','utf-8');const j=JSON.parse(d);console.log('Vulnerabilities: '+JSON.stringify(j.metadata?.vulnerabilities||{}))" 2>&1`).catch((e) => ({ stdout: '', stderr: e.message }));
+        const { stdout, stderr } = await execAsync(`npm audit --json 2>/dev/null | node -e "const d=require('fs').readFileSync('/dev/stdin','utf-8');const j=JSON.parse(d);console.log('Vulnerabilities: '+JSON.stringify(j.metadata?.vulnerabilities||{}))" 2>&1`, {
+          cwd: process.cwd(),
+          timeout: ACTION_TIMEOUT_MS,
+        }).catch((e) => ({ stdout: '', stderr: e.message }));
         output = stdout || stderr || 'Audit completed';
         break;
       }
@@ -137,18 +156,115 @@ async function runAction(action: string): Promise<ActionResult> {
   }
 }
 
+async function restartSystemdService(service: string): Promise<string> {
+  const args = USER_SERVICES.has(service)
+    ? ['--user', 'restart', service]
+    : ['restart', service];
+
+  await execFileAsync('systemctl', args, {
+    timeout: ACTION_TIMEOUT_MS,
+    encoding: 'utf-8',
+  });
+
+  const statusArgs = USER_SERVICES.has(service)
+    ? ['--user', 'is-active', service]
+    : ['is-active', service];
+
+  const { stdout } = await execFileAsync('systemctl', statusArgs, {
+    timeout: ACTION_TIMEOUT_MS,
+    encoding: 'utf-8',
+  });
+
+  return `${service} restart requested\nStatus: ${stdout.trim()}`;
+}
+
+async function restartDashboard(): Promise<string> {
+  try {
+    return await restartSystemdService('mission-control');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return [
+      'Dashboard restart was not executed because this dev server is not managed by the mission-control systemd service.',
+      'The local Next.js dev process is still running under the current shell.',
+      '',
+      `Systemd detail: ${message}`,
+    ].join('\n');
+  }
+}
+
+function clearStaleSessions(): string {
+  const sessionsPath = join(OPENCLAW_DIR, 'agents', 'main', 'sessions', 'sessions.json');
+
+  if (!existsSync(sessionsPath)) {
+    return `No session index found at ${sessionsPath}`;
+  }
+
+  const raw = readFileSync(sessionsPath, 'utf-8');
+  const sessions = JSON.parse(raw) as Record<string, Record<string, unknown>>;
+  const entries = Object.entries(sessions);
+  const staleCutoffMs = Date.now() - 1000 * 60 * 60 * 24 * 14;
+  const kept: Record<string, Record<string, unknown>> = {};
+  const removed: string[] = [];
+
+  for (const [key, value] of entries) {
+    const updatedAt = typeof value.updatedAt === 'number' ? value.updatedAt : 0;
+    const isRunEntry = key.split(':').includes('run');
+    const isAborted = value.abortedLastRun === true;
+    const isStaleTokenSnapshot = value.totalTokensFresh === false && updatedAt > 0 && updatedAt < staleCutoffMs;
+
+    if (isRunEntry || isAborted || isStaleTokenSnapshot) {
+      removed.push(key);
+      continue;
+    }
+
+    kept[key] = value;
+  }
+
+  if (removed.length === 0) {
+    return 'No stale, aborted, or duplicate run session records found.';
+  }
+
+  const backupPath = `${sessionsPath}.${new Date().toISOString().replace(/[:.]/g, '-')}.bak`;
+  writeFileSync(backupPath, raw);
+  writeFileSync(sessionsPath, `${JSON.stringify(kept, null, 2)}\n`);
+
+  return [
+    `Backed up session index to ${backupPath}`,
+    `Removed ${removed.length} record(s):`,
+    ...removed.slice(0, 40).map((key) => `- ${key}`),
+    removed.length > 40 ? `...and ${removed.length - 40} more` : '',
+  ].filter(Boolean).join('\n');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action } = body;
+    const { action, confirmed } = body;
 
     if (!action) {
       return NextResponse.json({ error: 'Missing action' }, { status: 400 });
     }
 
-    const validActions = ['git-status', 'restart-gateway', 'clear-temp', 'usage-stats', 'heartbeat', 'npm-audit'];
+    const validActions = [
+      'git-status',
+      'restart-gateway',
+      'restart-dashboard',
+      'gateway-logs',
+      'clear-stale-sessions',
+      'clear-temp',
+      'usage-stats',
+      'heartbeat',
+      'npm-audit',
+    ];
     if (!validActions.includes(action)) {
       return NextResponse.json({ error: `Unknown action. Valid: ${validActions.join(', ')}` }, { status: 400 });
+    }
+
+    if (DANGEROUS_ACTIONS.has(action) && confirmed !== true) {
+      return NextResponse.json(
+        { error: 'This action requires explicit confirmation.', confirmationRequired: true },
+        { status: 409 },
+      );
     }
 
     const result = await runAction(action);

@@ -51,8 +51,7 @@ A real-time dashboard and control center for [OpenClaw](https://openclaw.ai) AI 
 
 - **Node.js** 18+ (tested with v22)
 - **[OpenClaw](https://openclaw.ai)** installed and running on the same host
-- **PM2** or **systemd** (recommended for production)
-- **Caddy** or another reverse proxy (for HTTPS in production)
+- **PM2** or **systemd** (optional, for keeping the local service running)
 
 ---
 
@@ -149,7 +148,7 @@ openssl rand -base64 18
 npm run dev
 # → http://localhost:3000
 
-# Production build
+# Local production build
 npm run build
 npm start
 ```
@@ -158,9 +157,13 @@ Login at `http://localhost:3000` with the `ADMIN_PASSWORD` you set.
 
 ---
 
-## Production Deployment
+## Local-Only Deployment
 
-### PM2 (recommended)
+TenacitOS is intended to run on the same machine as OpenClaw. The default `dev` and `start` scripts bind to `127.0.0.1`, so the dashboard is reachable from the local machine only.
+
+Do not place this dashboard behind a public reverse proxy unless you have intentionally reviewed authentication, secrets, and external-action permissions.
+
+### PM2
 
 ```bash
 npm run build
@@ -197,16 +200,6 @@ sudo systemctl daemon-reload
 sudo systemctl enable mission-control
 sudo systemctl start mission-control
 ```
-
-### Reverse proxy — Caddy (HTTPS)
-
-```caddy
-mission-control.yourdomain.com {
-    reverse_proxy localhost:3000
-}
-```
-
-> When behind HTTPS, `secure: true` is set automatically on the auth cookie.
 
 ---
 
@@ -321,11 +314,13 @@ mission-control/
 
 ## Security
 
+- The dashboard is designed for local-only use and binds to `127.0.0.1` by default
 - All routes (including all `/api/*`) require authentication — handled by `src/middleware.ts`
 - `/api/auth/login` and `/api/health` are the only public endpoints
 - Login is rate-limited: **5 failed attempts → 15-minute lockout** per IP
 - Auth cookie is `httpOnly`, `sameSite: lax`, and `secure` in production
 - Terminal API uses a strict command allowlist — `env`, `curl`, `wget`, `node`, `python` are blocked
+- External commerce actions such as Etsy publishing or Printify ordering should require explicit human approval
 - **Never commit `.env.local`** — it contains your credentials
 
 Generate fresh secrets:

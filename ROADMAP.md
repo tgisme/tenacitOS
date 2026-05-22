@@ -358,6 +358,33 @@
 
 ---
 
+## Phase 13: Commerce Studio (Future)
+> Etsy and Printify workflow with human approval at every external step
+
+### 13.1 Product Idea Pipeline
+- [ ] Generate new product concepts from trends, memory, and shop constraints
+- [ ] Store drafts with title, niche, mockup notes, pricing assumptions, tags, and risk notes
+- [ ] Show a review queue where T can approve, reject, or request changes
+- [ ] Never publish or submit anything externally without explicit approval
+
+### 13.2 Design and Listing Prep
+- [ ] Generate or attach product artwork and mockup assets
+- [ ] Produce Etsy-ready titles, descriptions, tags, and SEO notes
+- [ ] Validate trademark/safety concerns before approval
+- [ ] Keep an audit trail of each approved listing package
+
+### 13.3 Etsy Integration
+- [ ] Draft approved products as Etsy listings
+- [ ] Keep listing creation disabled until API credentials and approval rules are configured
+- [ ] Sync listing status, orders, and customer-safe metadata back into the dashboard
+
+### 13.4 Printify Fulfillment
+- [ ] Map approved Etsy products to Printify products and variants
+- [ ] Prepare fulfillment only after an order is detected and reviewed by the configured rules
+- [ ] Track production, shipment, and exception status in the dashboard
+
+---
+
 ## Stack Técnico
 
 | Componente | Tecnología |

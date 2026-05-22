@@ -9,9 +9,10 @@ import {
   Shield,
   Users,
   Activity,
-  ExternalLink,
   GitBranch,
   LayoutGrid,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { AgentOrganigrama } from "@/components/AgentOrganigrama";
 
@@ -73,6 +74,11 @@ export default function AgentsPage() {
     return `${days}d ago`;
   };
 
+  const onlineCount = agents.filter((agent) => agent.status === "online").length;
+  const activeSessionCount = agents.reduce((sum, agent) => sum + agent.activeSessions, 0);
+  const chatBridgeCount = agents.filter((agent) => agent.botToken).length;
+  const idleCount = agents.filter((agent) => agent.status === "offline" && !agent.activeSessions).length;
+
   if (loading) {
     return (
       <div className="p-8">
@@ -103,6 +109,69 @@ export default function AgentsPage() {
         <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
           Multi-agent system overview • {agents.length} agents configured
         </p>
+      </div>
+
+      <div
+        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6"
+      >
+        {[
+          {
+            label: "Online",
+            value: `${onlineCount}/${agents.length}`,
+            icon: Circle,
+            color: onlineCount > 0 ? "var(--success)" : "var(--text-muted)",
+          },
+          {
+            label: "Active Sessions",
+            value: activeSessionCount,
+            icon: Activity,
+            color: activeSessionCount > 0 ? "var(--accent)" : "var(--text-muted)",
+          },
+          {
+            label: "Chat Bridges",
+            value: chatBridgeCount,
+            icon: MessageSquare,
+            color: chatBridgeCount > 0 ? "#0088cc" : "var(--text-muted)",
+          },
+          {
+            label: "Idle",
+            value: idleCount,
+            icon: idleCount > 0 ? Clock : AlertTriangle,
+            color: idleCount > 0 ? "var(--text-muted)" : "var(--success)",
+          },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <div
+            key={label}
+            className="rounded-lg p-4 flex items-center gap-3"
+            style={{
+              backgroundColor: "var(--card)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center"
+              style={{
+                backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)`,
+              }}
+            >
+              <Icon
+                className="w-4 h-4"
+                style={{
+                  color,
+                  fill: label === "Online" && onlineCount > 0 ? color : "transparent",
+                }}
+              />
+            </div>
+            <div>
+              <div className="text-xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+                {value}
+              </div>
+              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {label}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Tab switcher */}

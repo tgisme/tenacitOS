@@ -8,6 +8,7 @@ import { OPENCLAW_WORKSPACE, WORKSPACE_IDENTITY } from '@/lib/paths';
 const WORKSPACE_PATH = OPENCLAW_WORKSPACE;
 const IDENTITY_PATH = WORKSPACE_IDENTITY;
 const ENV_LOCAL_PATH = path.join(process.cwd(), '.env.local');
+const ADMIN_PASSWORD_ENV = 'ADMIN_PASSWORD';
 
 function parseIdentityMd(): { name: string; creature: string; emoji: string } {
   try {
@@ -142,19 +143,23 @@ export async function POST(request: Request) {
       } catch {
         return NextResponse.json({ error: 'Could not read configuration' }, { status: 500 });
       }
-      
-      // Verify current password
-      const currentPassMatch = envContent.match(/AUTH_PASSWORD=(.+)/);
+
+      // Verify current dashboard password.
+      const currentPassMatch = envContent.match(new RegExp(`^${ADMIN_PASSWORD_ENV}=(.*)$`, 'm'));
       const storedPassword = currentPassMatch?.[1]?.trim();
-      
+
+      if (!storedPassword) {
+        return NextResponse.json({ error: 'Admin password is not configured' }, { status: 500 });
+      }
+
       if (storedPassword !== currentPassword) {
         return NextResponse.json({ error: 'Current password is incorrect' }, { status: 401 });
       }
-      
+
       // Update password
       const newEnvContent = envContent.replace(
-        /AUTH_PASSWORD=.*/,
-        `AUTH_PASSWORD=${newPassword}`
+        new RegExp(`^${ADMIN_PASSWORD_ENV}=.*$`, 'm'),
+        `${ADMIN_PASSWORD_ENV}=${newPassword}`
       );
       
       fs.writeFileSync(ENV_LOCAL_PATH, newEnvContent);

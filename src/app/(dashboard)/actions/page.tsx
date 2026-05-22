@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   GitBranch, RotateCcw, Trash2, BarChart3, Heart, Shield,
-  Play, Loader2, X, CheckCircle, AlertCircle, Clock, Terminal,
+  Play, Loader2, X, CheckCircle, AlertCircle, Clock, Terminal, FileText, Server,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -27,8 +27,8 @@ interface QuickAction {
 const ACTIONS: QuickAction[] = [
   {
     id: "heartbeat",
-    label: "Check Heartbeat",
-    description: "Verify all services are up and the site is reachable",
+    label: "Local Health Check",
+    description: "Check gateway and local dashboard availability",
     icon: Heart,
     color: "var(--success)",
   },
@@ -52,6 +52,29 @@ const ACTIONS: QuickAction[] = [
     description: "Restart the OpenClaw gateway service",
     icon: RotateCcw,
     color: "var(--warning, #f59e0b)",
+    dangerous: true,
+  },
+  {
+    id: "restart-dashboard",
+    label: "Restart Dashboard",
+    description: "Restart the dashboard service when systemd manages it",
+    icon: Server,
+    color: "#38BDF8",
+    dangerous: true,
+  },
+  {
+    id: "gateway-logs",
+    label: "Open Gateway Logs",
+    description: "Show recent OpenClaw gateway journal entries",
+    icon: FileText,
+    color: "#A78BFA",
+  },
+  {
+    id: "clear-stale-sessions",
+    label: "Clear Stale Sessions",
+    description: "Back up and remove aborted, stale, or duplicate session records",
+    icon: Trash2,
+    color: "var(--error)",
     dangerous: true,
   },
   {
@@ -93,20 +116,24 @@ export default function ActionsPage() {
       const res = await fetch("/api/actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: action.id }),
+        body: JSON.stringify({ action: action.id, confirmed: action.dangerous }),
       });
-      const data: ActionResult = await res.json();
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `Action failed with HTTP ${res.status}`);
+      }
       setResults((prev) => ({ ...prev, [action.id]: data }));
       setSelectedResult(data);
-    } catch {
+    } catch (error) {
       const result: ActionResult = {
         action: action.id,
         status: "error",
-        output: "Network error",
+        output: error instanceof Error ? error.message : "Network error",
         duration_ms: 0,
         timestamp: new Date().toISOString(),
       };
       setResults((prev) => ({ ...prev, [action.id]: result }));
+      setSelectedResult(result);
     } finally {
       setRunning(null);
     }
@@ -218,7 +245,7 @@ export default function ActionsPage() {
                   <>
                     <Play className="w-4 h-4" />
                     Run
-                    {action.dangerous && <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>⚠️</span>}
+                    {action.dangerous && <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>confirm</span>}
                   </>
                 )}
               </button>
@@ -299,10 +326,10 @@ export default function ActionsPage() {
             border: "1px solid var(--border)",
           }}>
             <h3 style={{ color: "var(--text-primary)", marginBottom: "0.75rem", fontWeight: 600 }}>
-              ⚠️ Confirm: {confirmAction.label}
+              Confirm: {confirmAction.label}
             </h3>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
-              This action may affect running services. Are you sure?
+              This local maintenance action can change running services or local OpenClaw state. Review the output after it completes.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
               <button

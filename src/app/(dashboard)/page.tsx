@@ -14,12 +14,14 @@ import {
   Bot,
   MessageSquare,
   Users,
-  Gamepad2,
   Brain,
   Puzzle,
   Zap,
   Server,
   Terminal,
+  ShieldCheck,
+  Radio,
+  Gauge,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -42,15 +44,54 @@ interface Agent {
   botToken?: string;
 }
 
+interface RuntimeInfo {
+  mode: "local-only" | "network";
+  baseUrl: string;
+  gateway: {
+    name: string;
+    status: string;
+    healthy: boolean;
+  };
+  host: {
+    hostname: string;
+    platform: string;
+    uptime: number;
+    nodeVersion: string;
+  };
+}
+
+interface SessionSummary {
+  total: number;
+  sessions: Array<{
+    id: string;
+    typeLabel: string;
+    updatedAt: number;
+    totalTokens: number;
+    contextUsedPercent: number | null;
+    aborted: boolean;
+  }>;
+}
+
+function formatHostUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  if (days > 0) return `${days}d ${hours}h`;
+  return `${hours}h`;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats>({ total: 0, today: 0, success: 0, error: 0, byType: {} });
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary>({ total: 0, sessions: [] });
 
   useEffect(() => {
     Promise.all([
       fetch("/api/activities/stats").then(r => r.json()),
       fetch("/api/agents").then(r => r.json()),
-    ]).then(([actStats, agentsData]) => {
+      fetch("/api/runtime").then(r => r.json()),
+      fetch("/api/sessions").then(r => r.json()),
+    ]).then(([actStats, agentsData, runtimeData, sessionsData]) => {
       setStats({
         total: actStats.total || 0,
         today: actStats.today || 0,
@@ -59,8 +100,15 @@ export default function DashboardPage() {
         byType: actStats.byType || {},
       });
       setAgents(agentsData.agents || []);
+      setRuntime(runtimeData);
+      setSessionSummary({
+        total: sessionsData.total || 0,
+        sessions: sessionsData.sessions || [],
+      });
     }).catch(console.error);
   }, []);
+
+  const mainSession = sessionSummary.sessions[0];
 
   return (
     <div className="p-4 md:p-8">
@@ -77,9 +125,57 @@ export default function DashboardPage() {
           🦞 Mission Control
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-          Overview of Tenacitas agent activity
+          Local dashboard for OpenClaw activity, agents, sessions, and system controls
         </p>
       </div>
+
+      {/* Local Runtime */}
+      <div
+        className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 md:mb-6"
+      >
+        <StatsCard
+          title="Access Mode"
+          value={runtime?.mode === "local-only" ? "Local" : "Network"}
+          icon={<ShieldCheck className="w-5 h-5" />}
+          iconColor={runtime?.mode === "local-only" ? "var(--success)" : "var(--warning)"}
+        />
+        <StatsCard
+          title="Gateway"
+          value={runtime?.gateway.healthy ? "Active" : runtime?.gateway.status || "Unknown"}
+          icon={<Radio className="w-5 h-5" />}
+          iconColor={runtime?.gateway.healthy ? "var(--success)" : "var(--error)"}
+        />
+        <StatsCard
+          title="Sessions"
+          value={sessionSummary.total.toLocaleString()}
+          icon={<Terminal className="w-5 h-5" />}
+          iconColor="var(--info)"
+        />
+        <StatsCard
+          title="Context Used"
+          value={mainSession?.contextUsedPercent !== null && mainSession?.contextUsedPercent !== undefined ? `${mainSession.contextUsedPercent}%` : "n/a"}
+          icon={<Gauge className="w-5 h-5" />}
+          iconColor={(mainSession?.contextUsedPercent || 0) > 75 ? "var(--warning)" : "var(--accent)"}
+        />
+      </div>
+
+      {runtime && (
+        <div
+          className="mb-4 md:mb-6 px-4 py-3 rounded-lg flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+          style={{
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          <span className="text-sm">
+            Running on {runtime.host.hostname} · {runtime.host.platform} · uptime {formatHostUptime(runtime.host.uptime)}
+          </span>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {runtime.baseUrl}
+          </span>
+        </div>
+      )}
 
       {/* Stats Grid + Weather */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4 md:mb-6">
@@ -143,17 +239,6 @@ export default function DashboardPage() {
             </h2>
           </div>
           <div className="flex gap-2">
-            <Link
-              href="/office"
-              className="text-sm font-medium px-3 py-1.5 rounded-lg transition-all"
-              style={{ 
-                backgroundColor: 'var(--accent)',
-                color: 'var(--text-primary)',
-              }}
-            >
-              <Gamepad2 className="inline-block w-4 h-4 mr-1 mb-0.5" />
-              Open Office
-            </Link>
             <Link
               href="/agents"
               className="text-sm font-medium"
