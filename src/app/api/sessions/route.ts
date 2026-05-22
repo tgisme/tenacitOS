@@ -44,8 +44,11 @@ interface ParsedSession {
   outputTokens: number;
   totalTokens: number;
   contextTokens: number;
+  totalTokensFresh: boolean;
   contextUsedPercent: number | null;
   aborted: boolean;
+  attentionReasons: string[];
+  health: 'ok' | 'warning' | 'critical';
 }
 
 function parseSessionKey(key: string): {
@@ -103,6 +106,45 @@ function parseSessionKey(key: string): {
   };
 }
 
+function getAttentionReasons(raw: RawSession, contextUsedPercent: number | null): string[] {
+  const reasons: string[] = [];
+  const staleMs = 1000 * 60 * 60 * 24 * 7;
+
+  if (raw.abortedLastRun) {
+    reasons.push('Last run aborted');
+  }
+
+  if (contextUsedPercent !== null && contextUsedPercent >= 80) {
+    reasons.push(`High context use (${contextUsedPercent}%)`);
+  }
+
+  if ((raw.totalTokens || 0) > 0 && raw.totalTokensFresh === false) {
+    reasons.push('Token/context snapshot is stale');
+  }
+
+  if ((raw.updatedAt || 0) > 0 && Date.now() - raw.updatedAt > staleMs) {
+    reasons.push('No activity in 7+ days');
+  }
+
+  if (!raw.sessionId) {
+    reasons.push('No transcript id');
+  }
+
+  return reasons;
+}
+
+function getHealth(raw: RawSession, contextUsedPercent: number | null, reasons: string[]): ParsedSession['health'] {
+  if (raw.abortedLastRun || (contextUsedPercent !== null && contextUsedPercent >= 90)) {
+    return 'critical';
+  }
+
+  if (reasons.length > 0) {
+    return 'warning';
+  }
+
+  return 'ok';
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get('id');
@@ -133,6 +175,8 @@ async function listSessions(): Promise<NextResponse> {
           contextTokens > 0 && raw.totalTokensFresh
             ? Math.round((totalTokens / contextTokens) * 100)
             : null;
+        const attentionReasons = getAttentionReasons(raw, contextUsedPercent);
+        const health = getHealth(raw, contextUsedPercent, attentionReasons);
 
         acc.push({
           id: raw.key,
@@ -151,8 +195,11 @@ async function listSessions(): Promise<NextResponse> {
           outputTokens: raw.outputTokens || 0,
           totalTokens,
           contextTokens,
+          totalTokensFresh: raw.totalTokensFresh !== false,
           contextUsedPercent,
           aborted: raw.abortedLastRun || false,
+          attentionReasons,
+          health,
         });
         return acc;
       }, []);

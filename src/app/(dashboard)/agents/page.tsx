@@ -35,6 +35,12 @@ interface Agent {
   status: "online" | "offline";
   lastActivity?: string;
   activeSessions: number;
+  sessionCount: number;
+  needsAttention: number;
+  abortedSessions: number;
+  highContextSessions: number;
+  staleContextSessions: number;
+  sessionTypes: Record<string, number>;
 }
 
 export default function AgentsPage() {
@@ -77,7 +83,7 @@ export default function AgentsPage() {
   const onlineCount = agents.filter((agent) => agent.status === "online").length;
   const activeSessionCount = agents.reduce((sum, agent) => sum + agent.activeSessions, 0);
   const chatBridgeCount = agents.filter((agent) => agent.botToken).length;
-  const idleCount = agents.filter((agent) => agent.status === "offline" && !agent.activeSessions).length;
+  const attentionCount = agents.reduce((sum, agent) => sum + agent.needsAttention, 0);
 
   if (loading) {
     return (
@@ -134,10 +140,10 @@ export default function AgentsPage() {
             color: chatBridgeCount > 0 ? "#0088cc" : "var(--text-muted)",
           },
           {
-            label: "Idle",
-            value: idleCount,
-            icon: idleCount > 0 ? Clock : AlertTriangle,
-            color: idleCount > 0 ? "var(--text-muted)" : "var(--success)",
+            label: "Needs Attention",
+            value: attentionCount,
+            icon: attentionCount > 0 ? AlertTriangle : Clock,
+            color: attentionCount > 0 ? "var(--warning)" : "var(--success)",
           },
         ].map(({ label, value, icon: Icon, color }) => (
           <div
@@ -408,6 +414,77 @@ export default function AgentsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Session pressure */}
+              <div
+                className="rounded-lg p-3"
+                style={{
+                  backgroundColor: "var(--card-elevated)",
+                  border: `1px solid ${agent.needsAttention > 0 ? "color-mix(in srgb, var(--warning) 28%, var(--border))" : "var(--border)"}`,
+                }}
+              >
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4" style={{ color: agent.needsAttention > 0 ? "var(--warning)" : agent.color }} />
+                    <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                      Session Pressure
+                    </span>
+                  </div>
+                  <span
+                    className="text-xs font-medium px-2 py-1 rounded"
+                    style={{
+                      backgroundColor: agent.needsAttention > 0 ? "color-mix(in srgb, var(--warning) 14%, transparent)" : "var(--card)",
+                      color: agent.needsAttention > 0 ? "var(--warning)" : "var(--text-muted)",
+                    }}
+                  >
+                    {agent.needsAttention} attention
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { label: "Sessions", value: agent.sessionCount },
+                    { label: "Active", value: agent.activeSessions },
+                    { label: "Aborted", value: agent.abortedSessions },
+                    { label: "High ctx", value: agent.highContextSessions },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                        {item.value}
+                      </div>
+                      <div className="text-[0.68rem]" style={{ color: "var(--text-muted)" }}>
+                        {item.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {Object.keys(agent.sessionTypes).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {Object.entries(agent.sessionTypes).map(([type, count]) => (
+                      <span
+                        key={type}
+                        className="text-[0.68rem] px-2 py-1 rounded"
+                        style={{
+                          backgroundColor: `${agent.color}14`,
+                          color: agent.color,
+                        }}
+                      >
+                        {type}: {count}
+                      </span>
+                    ))}
+                    {agent.staleContextSessions > 0 && (
+                      <span
+                        className="text-[0.68rem] px-2 py-1 rounded"
+                        style={{
+                          backgroundColor: "color-mix(in srgb, var(--warning) 14%, transparent)",
+                          color: "var(--warning)",
+                        }}
+                      >
+                        stale ctx: {agent.staleContextSessions}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Last Activity */}
               <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">

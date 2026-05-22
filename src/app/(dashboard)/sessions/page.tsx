@@ -37,8 +37,11 @@ interface Session {
   outputTokens: number;
   totalTokens: number;
   contextTokens: number;
+  totalTokensFresh: boolean;
   contextUsedPercent: number | null;
   aborted: boolean;
+  attentionReasons: string[];
+  health: "ok" | "warning" | "critical";
 }
 
 interface Message {
@@ -80,6 +83,14 @@ function typeColor(type: Session["type"]): string {
     case "subagent": return "#60a5fa";
     case "direct": return "#4ade80";
     default: return "var(--text-muted)";
+  }
+}
+
+function healthColor(health: Session["health"]): string {
+  switch (health) {
+    case "critical": return "var(--error)";
+    case "warning": return "var(--warning)";
+    default: return "var(--success)";
   }
 }
 
@@ -293,6 +304,19 @@ function SessionDetail({
                     ⚠ Aborted
                   </span>
                 )}
+                {session.health !== "ok" && (
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "9999px",
+                      backgroundColor: `color-mix(in srgb, ${healthColor(session.health)} 14%, transparent)`,
+                      color: healthColor(session.health),
+                    }}
+                  >
+                    {session.health}
+                  </span>
+                )}
               </div>
               <div
                 style={{
@@ -323,6 +347,33 @@ function SessionDetail({
               <X style={{ width: "16px", height: "16px" }} />
             </button>
           </div>
+
+          {session.attentionReasons.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.4rem",
+                marginTop: "0.75rem",
+              }}
+            >
+              {session.attentionReasons.map((reason) => (
+                <span
+                  key={reason}
+                  style={{
+                    fontSize: "0.72rem",
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: "9999px",
+                    backgroundColor: `color-mix(in srgb, ${healthColor(session.health)} 12%, transparent)`,
+                    color: healthColor(session.health),
+                    border: `1px solid color-mix(in srgb, ${healthColor(session.health)} 28%, transparent)`,
+                  }}
+                >
+                  {reason}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Stats row */}
           <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
@@ -458,6 +509,7 @@ function SessionRow({
   onClick: () => void;
 }) {
   const color = typeColor(session.type);
+  const statusColor = healthColor(session.health);
   const contextBar =
     session.contextUsedPercent !== null ? Math.min(session.contextUsedPercent, 100) : null;
 
@@ -517,6 +569,11 @@ function SessionRow({
           {session.aborted && (
             <span style={{ fontSize: "0.65rem", color: "var(--error)" }}>⚠ aborted</span>
           )}
+          {session.attentionReasons.length > 0 && !session.aborted && (
+            <span style={{ fontSize: "0.65rem", color: statusColor }}>
+              {session.attentionReasons[0]}
+            </span>
+          )}
         </div>
         <div
           style={{
@@ -531,6 +588,31 @@ function SessionRow({
         >
           {session.key.replace("agent:main:", "")}
         </div>
+        {session.attentionReasons.length > 1 && (
+          <div
+            style={{
+              display: "flex",
+              gap: "0.3rem",
+              marginTop: "0.3rem",
+              flexWrap: "wrap",
+            }}
+          >
+            {session.attentionReasons.slice(0, 3).map((reason) => (
+              <span
+                key={reason}
+                style={{
+                  fontSize: "0.62rem",
+                  padding: "0.1rem 0.35rem",
+                  borderRadius: "9999px",
+                  backgroundColor: `color-mix(in srgb, ${statusColor} 10%, transparent)`,
+                  color: statusColor,
+                }}
+              >
+                {reason}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Model */}
@@ -629,7 +711,8 @@ export default function SessionsPage() {
     if (filter !== "all" && s.type !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
-      if (!s.key.toLowerCase().includes(q) && !s.model.toLowerCase().includes(q)) return false;
+      const reasonMatch = s.attentionReasons.some((reason) => reason.toLowerCase().includes(q));
+      if (!s.key.toLowerCase().includes(q) && !s.model.toLowerCase().includes(q) && !reasonMatch) return false;
     }
     return true;
   });
@@ -647,8 +730,9 @@ export default function SessionsPage() {
   const abortedCount = sessions.filter((s) => s.aborted).length;
   const highContextCount = sessions.filter((s) => (s.contextUsedPercent || 0) >= 80).length;
   const activeCount = sessions.filter((s) => s.ageMs <= 30 * 60 * 1000).length;
-  const staleTokenCount = sessions.filter((s) => s.totalTokens > 0 && s.contextUsedPercent === null).length;
-  const attentionCount = abortedCount + highContextCount;
+  const staleTokenCount = sessions.filter((s) => !s.totalTokensFresh && s.totalTokens > 0).length;
+  const attentionSessions = sessions.filter((s) => s.attentionReasons.length > 0);
+  const attentionCount = attentionSessions.length;
 
   return (
     <>
@@ -759,8 +843,8 @@ export default function SessionsPage() {
         {(attentionCount > 0 || staleTokenCount > 0) && (
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
+              display: "grid",
+              gridTemplateColumns: "auto 1fr",
               gap: "0.75rem",
               padding: "0.875rem 1rem",
               borderRadius: "0.75rem",
@@ -772,13 +856,37 @@ export default function SessionsPage() {
             }}
           >
             <AlertTriangle style={{ width: "18px", height: "18px", color: "var(--warning)", flexShrink: 0 }} />
-            <span>
-              {abortedCount > 0 && `${abortedCount} aborted session${abortedCount === 1 ? "" : "s"}`}
-              {abortedCount > 0 && highContextCount > 0 ? " · " : ""}
-              {highContextCount > 0 && `${highContextCount} session${highContextCount === 1 ? "" : "s"} above 80% context`}
-              {(abortedCount > 0 || highContextCount > 0) && staleTokenCount > 0 ? " · " : ""}
-              {staleTokenCount > 0 && `${staleTokenCount} session${staleTokenCount === 1 ? "" : "s"} need fresh context data`}
-            </span>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: "0.25rem" }}>
+                {attentionCount} session{attentionCount === 1 ? "" : "s"} need attention
+              </div>
+              <div style={{ color: "var(--text-secondary)", marginBottom: "0.5rem" }}>
+                {abortedCount > 0 && `${abortedCount} aborted`}
+                {abortedCount > 0 && highContextCount > 0 ? " · " : ""}
+                {highContextCount > 0 && `${highContextCount} high context`}
+                {(abortedCount > 0 || highContextCount > 0) && staleTokenCount > 0 ? " · " : ""}
+                {staleTokenCount > 0 && `${staleTokenCount} stale token/context snapshot`}
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                {attentionSessions.slice(0, 5).map((session) => (
+                  <button
+                    key={session.id}
+                    onClick={() => setSelectedSession(session)}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      borderRadius: "9999px",
+                      border: `1px solid color-mix(in srgb, ${healthColor(session.health)} 30%, transparent)`,
+                      background: `color-mix(in srgb, ${healthColor(session.health)} 10%, transparent)`,
+                      color: healthColor(session.health),
+                      cursor: "pointer",
+                      fontSize: "0.72rem",
+                    }}
+                  >
+                    {session.key.replace("agent:main:", "")}: {session.attentionReasons[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

@@ -25,6 +25,12 @@ interface Agent {
   status: "online" | "offline";
   lastActivity?: string;
   activeSessions: number;
+  sessionCount: number;
+  needsAttention: number;
+  abortedSessions: number;
+  highContextSessions: number;
+  staleContextSessions: number;
+  sessionTypes: Record<string, number>;
 }
 
 interface OpenClawAgentConfig {
@@ -64,12 +70,6 @@ interface OpenClawConfig {
   };
 }
 
-interface RawSession {
-  key: string;
-  updatedAt?: number;
-  agentId?: string;
-}
-
 // Fallback config used when an agent doesn't define its own ui config in openclaw.json.
 // The main agent reads name/emoji from env vars; all others fall back to generic defaults.
 // Override via each agent's openclaw.json → ui.emoji / ui.color / name fields.
@@ -100,22 +100,74 @@ function getAgentDisplayInfo(agentId: string, agentConfig?: OpenClawAgentConfig 
   };
 }
 
-function getAgentSessionSummary(): Record<string, { activeSessions: number; lastActivity?: string }> {
+function parseSessionType(key: string): string {
+  const parts = key.split(":");
+  return parts.includes("run") ? "run" : parts[2] || "unknown";
+}
+
+function getAgentSessionSummary(): Record<string, {
+  activeSessions: number;
+  lastActivity?: string;
+  sessionCount: number;
+  needsAttention: number;
+  abortedSessions: number;
+  highContextSessions: number;
+  staleContextSessions: number;
+  sessionTypes: Record<string, number>;
+}> {
   try {
     const now = Date.now();
     const activeWindowMs = 30 * 60 * 1000;
-    const summary: Record<string, { activeSessions: number; lastActivity?: string }> = {};
+    const summary: Record<string, {
+      activeSessions: number;
+      lastActivity?: string;
+      sessionCount: number;
+      needsAttention: number;
+      abortedSessions: number;
+      highContextSessions: number;
+      staleContextSessions: number;
+      sessionTypes: Record<string, number>;
+    }> = {};
 
     for (const session of readOpenClawSessions()) {
       const agentId = session.agentId || session.key.split(":")[1];
       if (!agentId) continue;
 
-      const entry = summary[agentId] || { activeSessions: 0 };
+      const entry = summary[agentId] || {
+        activeSessions: 0,
+        sessionCount: 0,
+        needsAttention: 0,
+        abortedSessions: 0,
+        highContextSessions: 0,
+        staleContextSessions: 0,
+        sessionTypes: {},
+      };
       const updatedAt = session.updatedAt || 0;
+      const sessionType = parseSessionType(session.key);
+
+      if (sessionType === "run") {
+        continue;
+      }
+
+      const contextUsedPercent =
+        session.contextTokens && session.contextTokens > 0 && session.totalTokensFresh
+          ? Math.round(((session.totalTokens || 0) / session.contextTokens) * 100)
+          : null;
+      const aborted = session.abortedLastRun === true;
+      const highContext = contextUsedPercent !== null && contextUsedPercent >= 80;
+      const staleContext = (session.totalTokens || 0) > 0 && session.totalTokensFresh === false;
 
       if (updatedAt > 0 && now - updatedAt <= activeWindowMs) {
         entry.activeSessions += 1;
       }
+
+      entry.sessionCount += 1;
+      entry.sessionTypes[sessionType] = (entry.sessionTypes[sessionType] || 0) + 1;
+
+      if (aborted) entry.abortedSessions += 1;
+      if (highContext) entry.highContextSessions += 1;
+      if (staleContext) entry.staleContextSessions += 1;
+      if (aborted || highContext || staleContext) entry.needsAttention += 1;
 
       if (updatedAt > 0) {
         const activity = new Date(updatedAt).toISOString();
@@ -232,6 +284,12 @@ export async function GET() {
         status,
         lastActivity,
         activeSessions: agentSessions?.activeSessions || 0,
+        sessionCount: agentSessions?.sessionCount || 0,
+        needsAttention: agentSessions?.needsAttention || 0,
+        abortedSessions: agentSessions?.abortedSessions || 0,
+        highContextSessions: agentSessions?.highContextSessions || 0,
+        staleContextSessions: agentSessions?.staleContextSessions || 0,
+        sessionTypes: agentSessions?.sessionTypes || {},
       };
     });
 
