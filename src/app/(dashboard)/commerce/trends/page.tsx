@@ -106,6 +106,31 @@ const statusStyles: Record<TrendStatus, { label: string; color: string; bg: stri
   archived: { label: "Archived", color: "var(--text-secondary)", bg: "var(--surface-elevated)" },
 };
 
+function titleCase(value: string) {
+  return value.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+}
+
+function buildSuggestionHref(trend: TrendBrief) {
+  const productAngle = trend.suggestedProducts[0] ? titleCase(trend.suggestedProducts[0]) : "Product Concept";
+  const params = new URLSearchParams({
+    fromTrend: "1",
+    title: `${productAngle} - ${trend.title}`,
+    niche: trend.niche,
+    sourceAgent: trend.sourceAgent,
+    confidence: String(trend.confidence),
+    trendSummary: trend.summary,
+    trendEvidence: trend.evidence.map((item) => item.signal).join("\n"),
+    seasonality: trend.seasonality,
+    competition: trend.competition,
+    tags: trend.keywords.join(", "),
+    riskNotes: trend.riskNotes,
+    etsyTitle: `${productAngle} for ${trend.niche}`,
+    seoNotes: `Seeded from trend brief: ${trend.title}. Keywords: ${trend.keywords.join(", ")}`,
+  });
+
+  return `/commerce?${params.toString()}`;
+}
+
 function MetricTile({
   icon: Icon,
   label,
@@ -451,6 +476,10 @@ export default function CommerceTrendsPage() {
                         <CheckCircle2 className="w-4 h-4" />
                         Converted
                       </button>
+                      <Link className="btn-primary" href={buildSuggestionHref(trend)}>
+                        <Store className="w-4 h-4" />
+                        Create Suggestion
+                      </Link>
                       <button className="btn-outline" type="button" disabled={isUpdating} onClick={() => setStatus(trend, "archived")}>
                         <Archive className="w-4 h-4" />
                         Archive

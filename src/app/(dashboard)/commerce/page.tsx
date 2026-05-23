@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -246,6 +247,8 @@ function Field({
 }
 
 export default function CommerceStudioPage() {
+  const searchParams = useSearchParams();
+  const didApplyTrendPrefill = useRef(false);
   const [data, setData] = useState<CommerceResponse | null>(null);
   const [draft, setDraft] = useState<DraftFormState>(EMPTY_DRAFT);
   const [isLoading, setIsLoading] = useState(true);
@@ -290,6 +293,28 @@ export default function CommerceStudioPage() {
   useEffect(() => {
     loadCommerce();
   }, [loadCommerce]);
+
+  useEffect(() => {
+    if (didApplyTrendPrefill.current || searchParams.get("fromTrend") !== "1") return;
+
+    didApplyTrendPrefill.current = true;
+    setDraft((current) => ({
+      ...current,
+      title: searchParams.get("title") || current.title,
+      niche: searchParams.get("niche") || current.niche,
+      sourceAgent: searchParams.get("sourceAgent") || current.sourceAgent,
+      confidence: searchParams.get("confidence") || current.confidence,
+      trendSummary: searchParams.get("trendSummary") || current.trendSummary,
+      trendEvidence: searchParams.get("trendEvidence") || current.trendEvidence,
+      seasonality: searchParams.get("seasonality") || current.seasonality,
+      competition: searchParams.get("competition") || current.competition,
+      tags: searchParams.get("tags") || current.tags,
+      riskNotes: searchParams.get("riskNotes") || current.riskNotes,
+      etsyTitle: searchParams.get("etsyTitle") || searchParams.get("title") || current.etsyTitle,
+      seoNotes: searchParams.get("seoNotes") || current.seoNotes,
+    }));
+    setNotice("Trend brief fields loaded into a new product suggestion.");
+  }, [searchParams]);
 
   const updateDraft = (field: keyof DraftFormState, value: string) => {
     setDraft((current) => ({ ...current, [field]: value }));
