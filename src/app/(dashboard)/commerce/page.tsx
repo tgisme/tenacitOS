@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   CheckCircle2,
@@ -357,10 +358,16 @@ export default function CommerceStudioPage() {
             External publishing is intentionally disabled.
           </p>
         </div>
-        <button className="btn-outline" onClick={loadCommerce} disabled={isLoading}>
-          <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <Link className="btn-outline" href="/commerce/trends">
+            <Search className="w-4 h-4" />
+            Trend Briefs
+          </Link>
+          <button className="btn-outline" onClick={loadCommerce} disabled={isLoading}>
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </header>
 
       <section className="grid grid-cols-1 md:grid-cols-5 gap-4">

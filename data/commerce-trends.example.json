@@ -1,0 +1,45 @@
+{
+  "briefs": [
+    {
+      "id": "example-etsy-trend-brief",
+      "createdAt": "2026-05-23T00:00:00.000Z",
+      "updatedAt": "2026-05-23T00:00:00.000Z",
+      "status": "promising",
+      "title": "AI Builder Desk Setup Gifts",
+      "sourceAgent": "Trend Scout",
+      "marketplace": "etsy",
+      "niche": "AI builders and automation hobbyists",
+      "summary": "Desk setup accessories, developer gifts, and AI automation themes appear to overlap in a way that can support useful print-on-demand products without relying on trademarked platform references.",
+      "evidence": [
+        {
+          "source": "Manual Etsy research",
+          "signal": "Desk mat and office accessory listings have strong visual mockup potential.",
+          "url": "",
+          "observedAt": "2026-05-23T00:00:00.000Z"
+        },
+        {
+          "source": "Keyword scan",
+          "signal": "Developer gift and desk setup terms are evergreen with seasonal holiday lift.",
+          "url": "",
+          "observedAt": "2026-05-23T00:00:00.000Z"
+        }
+      ],
+      "keywords": ["desk setup", "developer gift", "ai workflow", "automation"],
+      "suggestedProducts": ["desk mat", "notebook", "wall print"],
+      "seasonality": "Evergreen, with Q4 gift lift",
+      "competition": "Moderate; quality of artwork and niche-specific copy matter.",
+      "riskNotes": "Avoid logos, trademarked AI model names, and claims of official affiliation.",
+      "confidence": 72,
+      "opportunityScore": 68,
+      "linkedProductIds": ["example-local-draft"],
+      "auditTrail": [
+        {
+          "id": "example-trend-audit-entry",
+          "timestamp": "2026-05-23T00:00:00.000Z",
+          "action": "created",
+          "note": "Example trend brief created locally. No external marketplace action was taken."
+        }
+      ]
+    }
+  ]
+}
