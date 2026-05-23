@@ -4,11 +4,30 @@
       "id": "example-local-draft",
       "createdAt": "2026-05-22T00:00:00.000Z",
       "updatedAt": "2026-05-22T00:00:00.000Z",
-      "status": "needs-review",
+      "status": "proposed",
       "title": "AI Workflow Desk Mat",
       "niche": "AI builders and automation hobbyists",
+      "sourceAgent": "Trend Scout",
+      "confidence": 72,
+      "trendBrief": {
+        "summary": "Desk setup products and developer gift searches overlap with AI automation interest. A practical desk mat keeps the concept useful instead of novelty-only.",
+        "evidence": [
+          "Desk setup accessories support visual product mockups",
+          "Developer gift terms are evergreen around holidays",
+          "AI references should stay generic to avoid platform affiliation risk"
+        ],
+        "seasonality": "Evergreen with holiday gift lift",
+        "competition": "Moderate; differentiation depends on artwork quality and niche-specific copy"
+      },
       "mockupNotes": "Flat lay desk mat mockup with neutral office lighting and visible workflow diagram detail.",
       "pricingAssumptions": "Comparable desk mats range from $22 to $35; start at $29.95 before testing.",
+      "financials": {
+        "targetPrice": 29.95,
+        "productionCost": 12.5,
+        "shippingCost": 4.99,
+        "etsyFeeEstimate": 2.7,
+        "expectedMargin": 9.76
+      },
       "tags": ["ai workflow", "desk setup", "automation", "developer gift"],
       "riskNotes": "Avoid platform logos, trademarked model names, and claims that imply official affiliation.",
       "etsyCopy": {
@@ -17,14 +36,16 @@
         "seoNotes": "Lead with desk setup and builder gift keywords. Keep AI references generic."
       },
       "external": {
-        "publishingEnabled": false
+        "publishingEnabled": false,
+        "etsyStatus": "disabled",
+        "printifyStatus": "disabled"
       },
       "auditTrail": [
         {
           "id": "example-audit-entry",
           "timestamp": "2026-05-22T00:00:00.000Z",
           "action": "created",
-          "note": "Example local draft. No external commerce action was taken."
+          "note": "Example local proposal. No external commerce action was taken."
         }
       ]
     }

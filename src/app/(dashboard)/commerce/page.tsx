@@ -5,16 +5,30 @@ import {
   AlertCircle,
   CheckCircle2,
   ClipboardList,
+  DollarSign,
+  Lightbulb,
   Loader2,
   PackageCheck,
   RefreshCw,
+  Search,
   ShieldAlert,
   Store,
   XCircle,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-type CommerceStatus = "draft" | "needs-review" | "approved" | "rejected" | "revision";
+type CommerceStatus =
+  | "researching"
+  | "proposed"
+  | "designing"
+  | "listing-ready"
+  | "needs-review"
+  | "approved"
+  | "published"
+  | "selling"
+  | "paused"
+  | "rejected"
+  | "revision";
 
 interface CommerceAuditEntry {
   id: string;
@@ -30,8 +44,23 @@ interface CommerceProductDraft {
   status: CommerceStatus;
   title: string;
   niche: string;
+  sourceAgent: string;
+  confidence: number;
+  trendBrief: {
+    summary: string;
+    evidence: string[];
+    seasonality: string;
+    competition: string;
+  };
   mockupNotes: string;
   pricingAssumptions: string;
+  financials: {
+    targetPrice: number | null;
+    productionCost: number | null;
+    shippingCost: number | null;
+    etsyFeeEstimate: number | null;
+    expectedMargin: number | null;
+  };
   tags: string[];
   riskNotes: string;
   etsyCopy: {
@@ -43,6 +72,8 @@ interface CommerceProductDraft {
     etsyListingId?: string;
     printifyProductId?: string;
     publishingEnabled: false;
+    etsyStatus: "disabled" | "not-connected" | "draft-ready" | "drafted" | "published";
+    printifyStatus: "disabled" | "not-connected" | "product-ready" | "linked";
   };
   auditTrail: CommerceAuditEntry[];
 }
@@ -53,7 +84,10 @@ interface CommerceResponse {
     total: number;
     needsReview: number;
     approved: number;
+    researching: number;
+    published: number;
     blockedExternalActions: number;
+    totalExpectedMargin: number;
   };
   externalIntegrations: {
     etsy: "disabled";
@@ -65,8 +99,18 @@ interface CommerceResponse {
 interface DraftFormState {
   title: string;
   niche: string;
+  sourceAgent: string;
+  confidence: string;
+  trendSummary: string;
+  trendEvidence: string;
+  seasonality: string;
+  competition: string;
   mockupNotes: string;
   pricingAssumptions: string;
+  targetPrice: string;
+  productionCost: string;
+  shippingCost: string;
+  etsyFeeEstimate: string;
   tags: string;
   riskNotes: string;
   etsyTitle: string;
@@ -77,8 +121,18 @@ interface DraftFormState {
 const EMPTY_DRAFT: DraftFormState = {
   title: "",
   niche: "",
+  sourceAgent: "Manual entry",
+  confidence: "60",
+  trendSummary: "",
+  trendEvidence: "",
+  seasonality: "",
+  competition: "",
   mockupNotes: "",
   pricingAssumptions: "",
+  targetPrice: "",
+  productionCost: "",
+  shippingCost: "",
+  etsyFeeEstimate: "",
   tags: "",
   riskNotes: "",
   etsyTitle: "",
@@ -87,12 +141,32 @@ const EMPTY_DRAFT: DraftFormState = {
 };
 
 const statusStyles: Record<CommerceStatus, { label: string; color: string; bg: string }> = {
-  draft: { label: "Draft", color: "var(--text-secondary)", bg: "var(--surface-elevated)" },
+  researching: { label: "Researching", color: "var(--info)", bg: "var(--info-soft)" },
+  proposed: { label: "Proposed", color: "var(--warning)", bg: "var(--warning-soft)" },
+  designing: { label: "Designing", color: "var(--info)", bg: "var(--info-soft)" },
+  "listing-ready": { label: "Listing Ready", color: "var(--warning)", bg: "var(--warning-soft)" },
   "needs-review": { label: "Needs Review", color: "var(--warning)", bg: "var(--warning-soft)" },
   approved: { label: "Approved", color: "var(--positive)", bg: "var(--positive-soft)" },
+  published: { label: "Published", color: "var(--positive)", bg: "var(--positive-soft)" },
+  selling: { label: "Selling", color: "var(--positive)", bg: "var(--positive-soft)" },
+  paused: { label: "Paused", color: "var(--text-secondary)", bg: "var(--surface-elevated)" },
   rejected: { label: "Rejected", color: "var(--negative)", bg: "var(--negative-soft)" },
   revision: { label: "Revision", color: "var(--info)", bg: "var(--info-soft)" },
 };
+
+function formatMoney(value: number | null | undefined) {
+  if (value === null || value === undefined) return "n/a";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
+function MiniStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div style={{ minWidth: "92px" }}>
+      <p style={{ color: "var(--text-secondary)", fontSize: "11px", fontWeight: 700, textTransform: "uppercase" }}>{label}</p>
+      <p style={{ color: "var(--text-primary)", fontSize: "15px", fontWeight: 700, marginTop: "3px" }}>{value}</p>
+    </div>
+  );
+}
 
 function MetricTile({
   icon: Icon,
@@ -181,7 +255,15 @@ export default function CommerceStudioPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const products = useMemo(() => data?.products ?? [], [data?.products]);
-  const stats = data?.stats ?? { total: 0, needsReview: 0, approved: 0, blockedExternalActions: 0 };
+  const stats = data?.stats ?? {
+    total: 0,
+    needsReview: 0,
+    approved: 0,
+    researching: 0,
+    published: 0,
+    blockedExternalActions: 0,
+    totalExpectedMargin: 0,
+  };
 
   const latestAudit = useMemo(() => {
     return products
@@ -225,12 +307,12 @@ export default function CommerceStudioPage() {
         body: JSON.stringify(draft),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result?.error || "Failed to create draft");
+      if (!response.ok) throw new Error(result?.error || "Failed to create suggestion");
       setDraft(EMPTY_DRAFT);
-      setNotice("Draft saved locally for review.");
+      setNotice("Product suggestion saved locally for review.");
       await loadCommerce();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create draft");
+      setError(err instanceof Error ? err.message : "Failed to create suggestion");
     } finally {
       setIsSaving(false);
     }
@@ -271,7 +353,8 @@ export default function CommerceStudioPage() {
             Commerce Studio
           </h1>
           <p style={{ color: "var(--text-secondary)", marginTop: "6px", maxWidth: "760px" }}>
-            Local product draft review for Etsy and Printify concepts. External publishing is intentionally disabled.
+            Product suggestions, Etsy trend evidence, margins, and approval decisions for the commerce autopilot.
+            External publishing is intentionally disabled.
           </p>
         </div>
         <button className="btn-outline" onClick={loadCommerce} disabled={isLoading}>
@@ -280,11 +363,12 @@ export default function CommerceStudioPage() {
         </button>
       </header>
 
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricTile icon={Store} label="Local Drafts" value={stats.total} color="var(--info)" />
-        <MetricTile icon={ClipboardList} label="Needs Review" value={stats.needsReview} color="var(--warning)" />
+      <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <MetricTile icon={Lightbulb} label="Suggestions" value={stats.total} color="var(--info)" />
+        <MetricTile icon={Search} label="Researching" value={stats.researching} color="var(--info)" />
+        <MetricTile icon={ClipboardList} label="Queue" value={stats.needsReview} color="var(--warning)" />
         <MetricTile icon={PackageCheck} label="Approved" value={stats.approved} color="var(--positive)" />
-        <MetricTile icon={ShieldAlert} label="Blocked Publishes" value={stats.blockedExternalActions} color="var(--negative)" />
+        <MetricTile icon={DollarSign} label="Est. Margin" value={formatMoney(stats.totalExpectedMargin)} color="var(--positive)" />
       </section>
 
       <div
@@ -325,16 +409,32 @@ export default function CommerceStudioPage() {
       <section className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-5">
         <form className="card" onSubmit={createDraft} style={{ borderRadius: "8px", padding: "18px", display: "flex", flexDirection: "column", gap: "14px" }}>
           <div>
-            <h2 style={{ color: "var(--text-primary)", fontSize: "18px", fontWeight: 700 }}>New Local Draft</h2>
+            <h2 style={{ color: "var(--text-primary)", fontSize: "18px", fontWeight: 700 }}>New Product Suggestion</h2>
             <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "4px" }}>
-              Save a product concept for human review before any external action.
+              Capture an agent or manual product idea with trend evidence, cost assumptions, and Etsy listing copy.
             </p>
           </div>
 
           <Field label="Product Title" value={draft.title} onChange={(value) => updateDraft("title", value)} placeholder="AI Workflow Desk Mat" required />
           <Field label="Niche" value={draft.niche} onChange={(value) => updateDraft("niche", value)} placeholder="AI builders and automation hobbyists" required />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field label="Source Agent" value={draft.sourceAgent} onChange={(value) => updateDraft("sourceAgent", value)} placeholder="Trend Scout" />
+            <Field label="Confidence" value={draft.confidence} onChange={(value) => updateDraft("confidence", value)} placeholder="72" />
+          </div>
+          <Field label="Trend Summary" value={draft.trendSummary} onChange={(value) => updateDraft("trendSummary", value)} multiline />
+          <Field label="Trend Evidence" value={draft.trendEvidence} onChange={(value) => updateDraft("trendEvidence", value)} placeholder="One evidence point per line" multiline />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field label="Seasonality" value={draft.seasonality} onChange={(value) => updateDraft("seasonality", value)} />
+            <Field label="Competition" value={draft.competition} onChange={(value) => updateDraft("competition", value)} />
+          </div>
           <Field label="Mockup Notes" value={draft.mockupNotes} onChange={(value) => updateDraft("mockupNotes", value)} multiline />
           <Field label="Pricing Assumptions" value={draft.pricingAssumptions} onChange={(value) => updateDraft("pricingAssumptions", value)} multiline />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Target Price" value={draft.targetPrice} onChange={(value) => updateDraft("targetPrice", value)} placeholder="29.95" />
+            <Field label="Production Cost" value={draft.productionCost} onChange={(value) => updateDraft("productionCost", value)} placeholder="12.50" />
+            <Field label="Shipping Cost" value={draft.shippingCost} onChange={(value) => updateDraft("shippingCost", value)} placeholder="4.99" />
+            <Field label="Etsy Fee Est." value={draft.etsyFeeEstimate} onChange={(value) => updateDraft("etsyFeeEstimate", value)} placeholder="2.70" />
+          </div>
           <Field label="Tags" value={draft.tags} onChange={(value) => updateDraft("tags", value)} placeholder="ai workflow, desk setup, developer gift" />
           <Field label="Risk Notes" value={draft.riskNotes} onChange={(value) => updateDraft("riskNotes", value)} multiline />
           <Field label="Etsy Listing Title" value={draft.etsyTitle} onChange={(value) => updateDraft("etsyTitle", value)} />
@@ -343,7 +443,7 @@ export default function CommerceStudioPage() {
 
           <button className="btn-primary" type="submit" disabled={isSaving}>
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Store className="w-4 h-4" />}
-            Save Local Draft
+            Save Suggestion
           </button>
         </form>
 
@@ -354,7 +454,7 @@ export default function CommerceStudioPage() {
             </div>
           ) : products.length === 0 ? (
             <div className="card" style={{ borderRadius: "8px", padding: "28px", color: "var(--text-secondary)" }}>
-              No commerce drafts yet.
+              No product suggestions yet.
             </div>
           ) : (
             products.map((product) => {
@@ -370,15 +470,49 @@ export default function CommerceStudioPage() {
                         <span className="badge" style={{ color: status.color, backgroundColor: status.bg }}>
                           {status.label}
                         </span>
+                        <span className="badge" style={{ backgroundColor: "var(--surface-elevated)", color: "var(--text-secondary)" }}>
+                          {product.confidence}% confidence
+                        </span>
                       </div>
-                      <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "4px" }}>{product.niche}</p>
+                      <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "4px" }}>
+                        {product.niche} · sourced by {product.sourceAgent}
+                      </p>
                     </div>
                     <span style={{ color: "var(--text-muted)", fontSize: "12px", whiteSpace: "nowrap" }}>
                       {formatDistanceToNow(new Date(product.updatedAt), { addSuffix: true })}
                     </span>
                   </div>
 
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "16px",
+                      marginTop: "16px",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      backgroundColor: "var(--surface-elevated)",
+                    }}
+                  >
+                    <MiniStat label="Price" value={formatMoney(product.financials.targetPrice)} />
+                    <MiniStat label="Cost" value={formatMoney(product.financials.productionCost)} />
+                    <MiniStat label="Shipping" value={formatMoney(product.financials.shippingCost)} />
+                    <MiniStat label="Etsy Fees" value={formatMoney(product.financials.etsyFeeEstimate)} />
+                    <MiniStat label="Margin" value={formatMoney(product.financials.expectedMargin)} />
+                  </div>
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ marginTop: "16px" }}>
+                    <div>
+                      <p style={{ color: "var(--text-secondary)", fontSize: "12px", fontWeight: 700 }}>Trend Brief</p>
+                      <p style={{ color: "var(--text-primary)", fontSize: "14px", marginTop: "4px" }}>{product.trendBrief.summary || "No trend summary yet."}</p>
+                      {product.trendBrief.evidence.length > 0 && (
+                        <ul style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "8px", paddingLeft: "18px" }}>
+                          {product.trendBrief.evidence.slice(0, 3).map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                     <div>
                       <p style={{ color: "var(--text-secondary)", fontSize: "12px", fontWeight: 700 }}>Mockup</p>
                       <p style={{ color: "var(--text-primary)", fontSize: "14px", marginTop: "4px" }}>{product.mockupNotes || "No mockup notes yet."}</p>
@@ -393,9 +527,30 @@ export default function CommerceStudioPage() {
                       <p className="line-clamp-3" style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "4px" }}>{product.etsyCopy.description || "No description drafted."}</p>
                     </div>
                     <div>
+                      <p style={{ color: "var(--text-secondary)", fontSize: "12px", fontWeight: 700 }}>Market Timing</p>
+                      <p style={{ color: "var(--text-primary)", fontSize: "14px", marginTop: "4px" }}>
+                        {product.trendBrief.seasonality || "No seasonality notes."}
+                      </p>
+                      <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "6px" }}>
+                        {product.trendBrief.competition || "No competition notes."}
+                      </p>
+                    </div>
+                    <div>
                       <p style={{ color: "var(--text-secondary)", fontSize: "12px", fontWeight: 700 }}>Risk Notes</p>
                       <p style={{ color: "var(--text-primary)", fontSize: "14px", marginTop: "4px" }}>{product.riskNotes || "No risk notes yet."}</p>
                     </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "14px" }}>
+                    <span className="badge" style={{ backgroundColor: "var(--warning-soft)", color: "var(--warning)" }}>
+                      Etsy {product.external.etsyStatus}
+                    </span>
+                    <span className="badge" style={{ backgroundColor: "var(--warning-soft)", color: "var(--warning)" }}>
+                      Printify {product.external.printifyStatus}
+                    </span>
+                    <span className="badge" style={{ backgroundColor: "var(--negative-soft)", color: "var(--negative)" }}>
+                      Publishing blocked
+                    </span>
                   </div>
 
                   {product.tags.length > 0 && (

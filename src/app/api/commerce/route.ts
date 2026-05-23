@@ -3,7 +3,19 @@ import fs from "fs/promises";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 
-type CommerceStatus = "draft" | "needs-review" | "approved" | "rejected" | "revision";
+type CommerceStatus =
+  | "researching"
+  | "proposed"
+  | "designing"
+  | "listing-ready"
+  | "needs-review"
+  | "approved"
+  | "published"
+  | "selling"
+  | "paused"
+  | "rejected"
+  | "revision";
+
 type CommerceAuditAction = "created" | "updated" | "approved" | "rejected" | "revision-requested";
 
 interface CommerceAuditEntry {
@@ -20,8 +32,23 @@ interface CommerceProductDraft {
   status: CommerceStatus;
   title: string;
   niche: string;
+  sourceAgent: string;
+  confidence: number;
+  trendBrief: {
+    summary: string;
+    evidence: string[];
+    seasonality: string;
+    competition: string;
+  };
   mockupNotes: string;
   pricingAssumptions: string;
+  financials: {
+    targetPrice: number | null;
+    productionCost: number | null;
+    shippingCost: number | null;
+    etsyFeeEstimate: number | null;
+    expectedMargin: number | null;
+  };
   tags: string[];
   riskNotes: string;
   etsyCopy: {
@@ -33,6 +60,8 @@ interface CommerceProductDraft {
     etsyListingId?: string;
     printifyProductId?: string;
     publishingEnabled: false;
+    etsyStatus: "disabled" | "not-connected" | "draft-ready" | "drafted" | "published";
+    printifyStatus: "disabled" | "not-connected" | "product-ready" | "linked";
   };
   auditTrail: CommerceAuditEntry[];
 }
@@ -41,30 +70,31 @@ interface CommerceStore {
   products: CommerceProductDraft[];
 }
 
+type RawProduct = Omit<Partial<CommerceProductDraft>, "status" | "financials" | "trendBrief" | "external"> & {
+  status?: CommerceStatus | "draft";
+  financials?: Partial<CommerceProductDraft["financials"]>;
+  trendBrief?: Partial<CommerceProductDraft["trendBrief"]>;
+  external?: Partial<CommerceProductDraft["external"]>;
+};
+
 const DATA_PATH = path.join(process.cwd(), "data", "commerce-products.json");
 const EXAMPLE_PATH = path.join(process.cwd(), "data", "commerce-products.example.json");
-const VALID_STATUSES = new Set<CommerceStatus>(["draft", "needs-review", "approved", "rejected", "revision"]);
 
-async function loadStore(): Promise<CommerceStore> {
-  try {
-    const raw = await fs.readFile(DATA_PATH, "utf-8");
-    const parsed = JSON.parse(raw) as CommerceStore;
-    return { products: Array.isArray(parsed.products) ? parsed.products : [] };
-  } catch {
-    try {
-      const raw = await fs.readFile(EXAMPLE_PATH, "utf-8");
-      const parsed = JSON.parse(raw) as CommerceStore;
-      return { products: Array.isArray(parsed.products) ? parsed.products : [] };
-    } catch {
-      return { products: [] };
-    }
-  }
-}
+const VALID_STATUSES = new Set<CommerceStatus>([
+  "researching",
+  "proposed",
+  "designing",
+  "listing-ready",
+  "needs-review",
+  "approved",
+  "published",
+  "selling",
+  "paused",
+  "rejected",
+  "revision",
+]);
 
-async function saveStore(store: CommerceStore): Promise<void> {
-  await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-  await fs.writeFile(DATA_PATH, `${JSON.stringify(store, null, 2)}\n`);
-}
+const REVIEW_STATUSES = new Set<CommerceStatus>(["approved", "rejected", "revision"]);
 
 function normalizeTags(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -78,6 +108,30 @@ function normalizeTags(value: unknown): string[] {
   return [];
 }
 
+function normalizeEvidence(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 8);
+  }
+
+  if (typeof value === "string") {
+    return value.split("\n").map((item) => item.trim()).filter(Boolean).slice(0, 8);
+  }
+
+  return [];
+}
+
+function normalizeNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function calculateMargin(financials: CommerceProductDraft["financials"]): number | null {
+  if (!financials.targetPrice) return null;
+  const costs = (financials.productionCost ?? 0) + (financials.shippingCost ?? 0) + (financials.etsyFeeEstimate ?? 0);
+  return Number((financials.targetPrice - costs).toFixed(2));
+}
+
 function makeAudit(action: CommerceAuditAction, note: string): CommerceAuditEntry {
   return {
     id: randomUUID(),
@@ -87,12 +141,87 @@ function makeAudit(action: CommerceAuditAction, note: string): CommerceAuditEntr
   };
 }
 
+function normalizeProduct(raw: RawProduct): CommerceProductDraft {
+  const status = raw.status === "draft" ? "proposed" : raw.status;
+  const financials = {
+    targetPrice: raw.financials?.targetPrice ?? null,
+    productionCost: raw.financials?.productionCost ?? null,
+    shippingCost: raw.financials?.shippingCost ?? null,
+    etsyFeeEstimate: raw.financials?.etsyFeeEstimate ?? null,
+    expectedMargin: raw.financials?.expectedMargin ?? null,
+  };
+
+  return {
+    id: raw.id ?? randomUUID(),
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+    updatedAt: raw.updatedAt ?? new Date().toISOString(),
+    status: status && VALID_STATUSES.has(status) ? status : "proposed",
+    title: raw.title ?? "Untitled product idea",
+    niche: raw.niche ?? "Uncategorized",
+    sourceAgent: raw.sourceAgent ?? "Manual entry",
+    confidence: Math.max(0, Math.min(100, raw.confidence ?? 60)),
+    trendBrief: {
+      summary: raw.trendBrief?.summary ?? "",
+      evidence: normalizeEvidence(raw.trendBrief?.evidence),
+      seasonality: raw.trendBrief?.seasonality ?? "",
+      competition: raw.trendBrief?.competition ?? "",
+    },
+    mockupNotes: raw.mockupNotes ?? "",
+    pricingAssumptions: raw.pricingAssumptions ?? "",
+    financials: {
+      ...financials,
+      expectedMargin: financials.expectedMargin ?? calculateMargin(financials),
+    },
+    tags: normalizeTags(raw.tags),
+    riskNotes: raw.riskNotes ?? "",
+    etsyCopy: {
+      title: raw.etsyCopy?.title ?? raw.title ?? "Untitled product idea",
+      description: raw.etsyCopy?.description ?? "",
+      seoNotes: raw.etsyCopy?.seoNotes ?? "",
+    },
+    external: {
+      etsyListingId: raw.external?.etsyListingId,
+      printifyProductId: raw.external?.printifyProductId,
+      publishingEnabled: false,
+      etsyStatus: raw.external?.etsyStatus ?? "disabled",
+      printifyStatus: raw.external?.printifyStatus ?? "disabled",
+    },
+    auditTrail: Array.isArray(raw.auditTrail) ? raw.auditTrail : [],
+  };
+}
+
+async function loadStore(): Promise<CommerceStore> {
+  try {
+    const raw = await fs.readFile(DATA_PATH, "utf-8");
+    const parsed = JSON.parse(raw) as { products?: RawProduct[] };
+    return { products: Array.isArray(parsed.products) ? parsed.products.map(normalizeProduct) : [] };
+  } catch {
+    try {
+      const raw = await fs.readFile(EXAMPLE_PATH, "utf-8");
+      const parsed = JSON.parse(raw) as { products?: RawProduct[] };
+      return { products: Array.isArray(parsed.products) ? parsed.products.map(normalizeProduct) : [] };
+    } catch {
+      return { products: [] };
+    }
+  }
+}
+
+async function saveStore(store: CommerceStore): Promise<void> {
+  await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
+  await fs.writeFile(DATA_PATH, `${JSON.stringify(store, null, 2)}\n`);
+}
+
 function getStats(products: CommerceProductDraft[]) {
+  const totalExpectedMargin = products.reduce((sum, product) => sum + (product.financials.expectedMargin ?? 0), 0);
+
   return {
     total: products.length,
-    needsReview: products.filter((product) => product.status === "needs-review").length,
+    needsReview: products.filter((product) => ["proposed", "listing-ready", "needs-review"].includes(product.status)).length,
     approved: products.filter((product) => product.status === "approved").length,
+    researching: products.filter((product) => product.status === "researching").length,
+    published: products.filter((product) => ["published", "selling"].includes(product.status)).length,
     blockedExternalActions: products.filter((product) => product.external.publishingEnabled === false).length,
+    totalExpectedMargin: Number(totalExpectedMargin.toFixed(2)),
   };
 }
 
@@ -129,15 +258,35 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const financials: CommerceProductDraft["financials"] = {
+      targetPrice: normalizeNumber(body.targetPrice),
+      productionCost: normalizeNumber(body.productionCost),
+      shippingCost: normalizeNumber(body.shippingCost),
+      etsyFeeEstimate: normalizeNumber(body.etsyFeeEstimate),
+      expectedMargin: null,
+    };
+
     const product: CommerceProductDraft = {
       id: randomUUID(),
       createdAt: now,
       updatedAt: now,
-      status: body.status === "draft" ? "draft" : "needs-review",
+      status: VALID_STATUSES.has(body.status) ? body.status : "proposed",
       title,
       niche,
+      sourceAgent: String(body.sourceAgent || "Manual entry").trim(),
+      confidence: Math.max(0, Math.min(100, normalizeNumber(body.confidence) ?? 60)),
+      trendBrief: {
+        summary: String(body.trendSummary || "").trim(),
+        evidence: normalizeEvidence(body.trendEvidence),
+        seasonality: String(body.seasonality || "").trim(),
+        competition: String(body.competition || "").trim(),
+      },
       mockupNotes: String(body.mockupNotes || "").trim(),
       pricingAssumptions: String(body.pricingAssumptions || "").trim(),
+      financials: {
+        ...financials,
+        expectedMargin: calculateMargin(financials),
+      },
       tags: normalizeTags(body.tags),
       riskNotes: String(body.riskNotes || "").trim(),
       etsyCopy: {
@@ -147,8 +296,10 @@ export async function POST(request: NextRequest) {
       },
       external: {
         publishingEnabled: false,
+        etsyStatus: "disabled",
+        printifyStatus: "disabled",
       },
-      auditTrail: [makeAudit("created", "Local draft created. No external commerce action was taken.")],
+      auditTrail: [makeAudit("created", "Product suggestion created locally. No external commerce action was taken.")],
     };
 
     const store = await loadStore();
@@ -173,7 +324,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid id/status" }, { status: 400 });
     }
 
-    if ((status === "approved" || status === "rejected" || status === "revision") && !note) {
+    if (REVIEW_STATUSES.has(status) && !note) {
       return NextResponse.json({ error: "A review note is required for approval decisions" }, { status: 400 });
     }
 
@@ -186,10 +337,18 @@ export async function PATCH(request: NextRequest) {
 
     product.status = status;
     product.updatedAt = new Date().toISOString();
-    product.auditTrail.unshift(makeAudit(
-      status === "approved" ? "approved" : status === "rejected" ? "rejected" : status === "revision" ? "revision-requested" : "updated",
-      note || `Status changed to ${status}`,
-    ));
+    product.auditTrail.unshift(
+      makeAudit(
+        status === "approved"
+          ? "approved"
+          : status === "rejected"
+            ? "rejected"
+            : status === "revision"
+              ? "revision-requested"
+              : "updated",
+        note || `Status changed to ${status}`,
+      ),
+    );
 
     await saveStore(store);
 
