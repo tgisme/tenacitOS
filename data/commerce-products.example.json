@@ -1,0 +1,32 @@
+{
+  "products": [
+    {
+      "id": "example-local-draft",
+      "createdAt": "2026-05-22T00:00:00.000Z",
+      "updatedAt": "2026-05-22T00:00:00.000Z",
+      "status": "needs-review",
+      "title": "AI Workflow Desk Mat",
+      "niche": "AI builders and automation hobbyists",
+      "mockupNotes": "Flat lay desk mat mockup with neutral office lighting and visible workflow diagram detail.",
+      "pricingAssumptions": "Comparable desk mats range from $22 to $35; start at $29.95 before testing.",
+      "tags": ["ai workflow", "desk setup", "automation", "developer gift"],
+      "riskNotes": "Avoid platform logos, trademarked model names, and claims that imply official affiliation.",
+      "etsyCopy": {
+        "title": "AI Workflow Desk Mat for Automation Builders",
+        "description": "A practical desk mat concept for people building AI automations, agents, and repeatable workflows.",
+        "seoNotes": "Lead with desk setup and builder gift keywords. Keep AI references generic."
+      },
+      "external": {
+        "publishingEnabled": false
+      },
+      "auditTrail": [
+        {
+          "id": "example-audit-entry",
+          "timestamp": "2026-05-22T00:00:00.000Z",
+          "action": "created",
+          "note": "Example local draft. No external commerce action was taken."
+        }
+      ]
+    }
+  ]
+}
