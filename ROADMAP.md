@@ -1,5 +1,27 @@
 # 🦞 Mission Control - Roadmap
 
+## North Star: Commerce Autopilot
+> The dashboard should become T's command center for products he wants to sell.
+
+The long-term dream is a mostly agent-run commerce operation. Agents should research Etsy trends, generate product ideas, prepare designs/listings, connect those approved products to Etsy and Printify or a similar fulfillment provider, and keep T informed through the dashboard.
+
+The dashboard should answer:
+- What products exist, what stage are they in, and what needs approval?
+- What Etsy trends are agents researching right now?
+- What product ideas are agents recommending, and why?
+- What designs/listings/mockups are ready for review?
+- What revenue, costs, margins, fulfillment status, and exceptions exist?
+- What are agents currently working on across research, creation, publishing, and operations?
+
+Hard rule: agents can research, draft, prepare, and recommend freely, but anything that publishes externally, spends money, sends customer-facing messages, or changes a real shop should require explicit approval until T configures a different rule.
+
+Near-term product direction:
+1. Build the commerce data model and approval queue first.
+2. Add Etsy trend research intake and agent work tracking.
+3. Add product idea suggestion cards with approve/deny/request-changes actions.
+4. Add Etsy and Printify credential/status placeholders before real API writes.
+5. Only then wire real shop, listing, and fulfillment actions behind approval gates.
+
 ## Fase 1: Fundamentos (Semana 1)
 > Mejorar lo que ya existe y añadir datos reales
 
@@ -358,30 +380,45 @@
 
 ---
 
-## Phase 13: Commerce Studio (Future)
-> Etsy and Printify workflow with human approval at every external step
+## Phase 13: Commerce Autopilot
+> Etsy and Printify workflow with trend research, product proposals, metrics, and human approval at every external step
 
 ### 13.1 Product Idea Pipeline
 - [ ] Generate new product concepts from trends, memory, and shop constraints
 - [ ] Store drafts with title, niche, mockup notes, pricing assumptions, tags, and risk notes
 - [ ] Show a review queue where T can approve, reject, or request changes
 - [ ] Never publish or submit anything externally without explicit approval
+- [ ] Track lifecycle state: researching, proposed, designing, listing-ready, approved, published, selling, paused, rejected
 
-### 13.2 Design and Listing Prep
+### 13.2 Etsy Trend Research
+- [ ] Collect Etsy trend signals from approved sources and manual imports
+- [ ] Track niche, seasonality, competition, price ranges, common tags, and example products
+- [ ] Let agents create research briefs with confidence, evidence, and risk notes
+- [ ] Link each product suggestion back to trend evidence
+
+### 13.3 Design and Listing Prep
 - [ ] Generate or attach product artwork and mockup assets
 - [ ] Produce Etsy-ready titles, descriptions, tags, and SEO notes
 - [ ] Validate trademark/safety concerns before approval
 - [ ] Keep an audit trail of each approved listing package
 
-### 13.3 Etsy Integration
+### 13.4 Etsy Integration
 - [ ] Draft approved products as Etsy listings
 - [ ] Keep listing creation disabled until API credentials and approval rules are configured
 - [ ] Sync listing status, orders, and customer-safe metadata back into the dashboard
+- [ ] Show shop health, revenue, listing views, favorites, conversion, and order status when available
 
-### 13.4 Printify Fulfillment
+### 13.5 Printify Fulfillment
 - [ ] Map approved Etsy products to Printify products and variants
 - [ ] Prepare fulfillment only after an order is detected and reviewed by the configured rules
 - [ ] Track production, shipment, and exception status in the dashboard
+- [ ] Show product cost, shipping cost, Etsy fees estimate, margin, and fulfillment SLA risk
+
+### 13.6 Commerce Metrics and Agent Ops
+- [ ] Revenue, cost, profit, margin, and trend dashboards
+- [ ] Agent work board for trend research, product generation, listing prep, publishing, and fulfillment monitoring
+- [ ] Suggestions inbox for product ideas, pricing changes, tags, designs, seasonal pivots, and underperforming listings
+- [ ] Approval history with rationale, assets, generated copy, and final action taken
 
 ---
 
@@ -405,43 +442,46 @@
 
 ## Prioridad Recomendada
 
-### Tier 0: The Flagship 🚀 (Requested by Carlos)
-**Fase 8: The Office 3D** - Entorno 3D inmersivo donde visualizar agentes trabajando
-- Empezar por MVP (8.1) → 2 semanas
-- Luego Interactions (8.2) → 1 semana
-- Multi-Floor (8.3) es opcional/futuro
+### Tier 0: Commerce Autopilot (Current North Star)
+**Phase 13: Commerce Autopilot** - Etsy + Printify product business dashboard with agent research, recommendations, approvals, revenue/cost visibility, and fulfillment tracking.
+- Start with data model + approval queue
+- Then trend research briefs + product suggestion cards
+- Then integration status placeholders for Etsy/Printify
+- Then real API reads, followed by approval-gated external writes
 
 ### Tier 1: Core Functionality (Must Have)
 1. **Fase 1** - Activity Logger Real → sin esto lo demás no tiene sentido
 2. **Fase 3** - Cron Manager completo → uso diario
 3. **Fase 2** - Memory Browser → gestión de conocimiento
+4. **Phase 13.1 / 13.2** - Commerce product pipeline + Etsy trend research → business goal
 
 ### Tier 2: High Value (Should Have)
-4. **Fase 5** - Command Terminal + Session History → interacción directa
-5. **Fase 9.4** - Quick Actions Hub → productividad inmediata
-6. **Fase 10.1** - Sub-Agent Dashboard → visibilidad de workflows
+5. **Fase 5** - Command Terminal + Session History → interacción directa
+6. **Fase 10.1** - Sub-Agent Dashboard → visibilidad de commerce workflows
+7. **Fase 9.4** - Quick Actions Hub → productividad inmediata
 
 ### Tier 3: Intelligence & Insights (Nice to Have)
-7. **Fase 4** - Analytics básicos → métricas
-8. **Fase 9.2** - Token Economics → optimización de costes
-9. **Fase 9.6** - Smart Suggestions → IA que se auto-mejora
+8. **Fase 4** - Analytics básicos → métricas
+9. **Fase 9.2** - Token Economics → optimización de costes
+10. **Fase 9.6** - Smart Suggestions → IA que se auto-mejora
 
 ### Tier 4: Advanced Features (Wow Factor)
-10. **Fase 9.3** - Knowledge Graph → visualización avanzada
-11. **Fase 11.2** - Heatmaps Interactivos → análisis visual
-12. **Fase 10.2** - Agent Communication Graph → debugging multi-agent
+11. **Fase 8** - The Office 3D → flagship visualization after commerce foundations
+12. **Fase 9.3** - Knowledge Graph → visualización avanzada
+13. **Fase 11.2** - Heatmaps Interactivos → análisis visual
+14. **Fase 10.2** - Agent Communication Graph → debugging multi-agent
 
 ### Tier 5: Polish & Experimental (Future)
-13. **Fase 7** - Real-time updates → UX premium
-14. **Fase 11.1** - 3D Workspace Explorer (no-office) → alternativa visual
-15. **Fase 12** - Collaboration → equipo/público
+15. **Fase 7** - Real-time updates → UX premium
+16. **Fase 11.1** - 3D Workspace Explorer (no-office) → alternativa visual
+17. **Fase 12** - Collaboration → equipo/público
 
 ### Tier 6: Admin & Config (When Needed)
-16. **Fase 6** - Skills Manager + Config Editor → cuando sea necesario
+18. **Fase 6** - Skills Manager + Config Editor → cuando sea necesario
 
-**Nota:** The Office 3D (Fase 8) es la feature flagship. Priorizar su MVP antes que otras fases avanzadas.
+**Nota:** Commerce Autopilot is now the product north star. The Office 3D remains a strong visualization idea, but should follow the commerce foundations unless T explicitly reprioritizes it.
 
 ---
 
 *Creado: 2026-02-07*
-*Última actualización: 2026-02-21 (Tenacitas nightly shift)*
+*Última actualización: 2026-05-23 (Commerce Autopilot north star)*
