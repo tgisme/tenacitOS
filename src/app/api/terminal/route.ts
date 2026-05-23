@@ -9,8 +9,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { logActivity } from '@/lib/activities-db';
+import { OPENCLAW_WORKSPACE } from '@/lib/paths';
 
 const execAsync = promisify(exec);
+const COMMAND_TIMEOUT_MS = 15000;
+const TERMINAL_ENV: NodeJS.ProcessEnv = {
+  HOME: process.env.HOME,
+  PATH: process.env.PATH,
+  LANG: process.env.LANG,
+  LC_ALL: process.env.LC_ALL,
+  NODE_ENV: process.env.NODE_ENV,
+  OPENCLAW_DIR: process.env.OPENCLAW_DIR,
+  OPENCLAW_WORKSPACE: process.env.OPENCLAW_WORKSPACE,
+};
 
 // Allowlist of allowed base commands (first word of command)
 // NOTE: env, curl, wget intentionally excluded to prevent secret exfiltration and arbitrary downloads
@@ -22,7 +34,7 @@ const ALLOWED_BASE_COMMANDS = new Set([
   'pm2', 'docker',
   'git', 'ping', 'nslookup', 'dig', 'host',
   'netstat', 'ss', 'ip', 'ifconfig', 'lsof',
-  'echo', 'printf', 'which', 'type', 'file',
+  'echo', 'printf', 'pwd', 'which', 'type', 'file',
   'sort', 'uniq', 'awk', 'sed', 'tr', 'cut', 'xargs',
   'locate',
 ]);
@@ -42,15 +54,22 @@ const BLOCKED_PATTERNS: RegExp[] = [
   /\breboot\b/,
   /\bkill\b/,
   /\bpkill\b/,
+  /\bkillall\b/,
   /\benv\b/,        // would expose env vars (ADMIN_PASSWORD, AUTH_SECRET)
   /\bprintenv\b/,   // same as env
+  /\bset\b/,        // shell/session state can expose secrets
+  /\bexport\b/,     // same as set/env
   /\bcurl\b/,       // arbitrary HTTP requests / data exfiltration
   /\bwget\b/,       // arbitrary downloads
+  /\bnc\b/,         // arbitrary network connections
+  /\bssh\b/,        // arbitrary remote access
   /\bnode\b/,       // arbitrary JS execution
   /\bnpm\b/,        // can run arbitrary scripts
+  /\bnpx\b/,        // can run arbitrary scripts
   /\bpython3?\b/,   // arbitrary code execution
   /`[^`]*`/,        // command substitution
   /\$\(/,           // command substitution
+  /\$\{/,           // variable expansion
   />{1,2}\s*[^|&]/,  // output redirect (not pipe)
   /eval\s/,
   /exec\s/,
@@ -81,7 +100,17 @@ function isCommandAllowed(cmd: string): boolean {
   return segments.length > 0;
 }
 
+export async function GET() {
+  return NextResponse.json({
+    cwd: OPENCLAW_WORKSPACE,
+    timeoutMs: COMMAND_TIMEOUT_MS,
+    allowedCommands: Array.from(ALLOWED_BASE_COMMANDS).sort(),
+  });
+}
+
 export async function POST(request: NextRequest) {
+  const start = Date.now();
+
   try {
     const body = await request.json();
     const command = (body.command || '').trim();
@@ -91,23 +120,44 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isCommandAllowed(command)) {
+      logActivity('command', `Terminal rejected: ${command}`, 'error', {
+        metadata: { reason: 'allowlist' },
+      });
       return NextResponse.json({
         error: `Command not allowed: "${command}"`,
         hint: 'Only safe read-only commands are permitted (ls, cat, df, ps, git, ping, etc.). Commands like env, curl, wget, node, python are blocked for security.',
       }, { status: 403 });
     }
 
-    const start = Date.now();
-    const { stdout, stderr } = await execAsync(command, { timeout: 10000, maxBuffer: 1024 * 1024 });
+    const { stdout, stderr } = await execAsync(command, {
+      cwd: OPENCLAW_WORKSPACE,
+      timeout: COMMAND_TIMEOUT_MS,
+      maxBuffer: 1024 * 1024,
+      env: TERMINAL_ENV,
+    });
     const duration = Date.now() - start;
+    const output = stdout + (stderr ? `\nSTDERR: ${stderr}` : '');
+
+    logActivity('command', `Terminal command: ${command}`, 'success', {
+      duration_ms: duration,
+      metadata: { command },
+    });
 
     return NextResponse.json({
-      output: stdout + (stderr ? `\nSTDERR: ${stderr}` : ''),
+      cwd: OPENCLAW_WORKSPACE,
+      output: output || '(no output)',
       duration,
       command,
     });
   } catch (error) {
+    const duration = Date.now() - start;
     const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: msg, output: msg }, { status: 200 }); // Return 200 with error in output
+
+    logActivity('command', 'Terminal command failed', 'error', {
+      duration_ms: duration,
+      metadata: { error: msg },
+    });
+
+    return NextResponse.json({ error: msg, output: msg, duration }, { status: 200 }); // Return 200 with error in output
   }
 }

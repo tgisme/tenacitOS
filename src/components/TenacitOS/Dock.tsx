@@ -13,6 +13,7 @@ import {
   Puzzle,
   DollarSign,
   Store,
+  SquareTerminal,
   Settings,
   History,
 } from "lucide-react";
@@ -27,6 +28,7 @@ const dockItems = [
   { href: "/cron", label: "Cron Jobs", icon: Clock },
   { href: "/sessions", label: "Sessions", icon: History },
   { href: "/skills", label: "Skills", icon: Puzzle },
+  { href: "/terminal", label: "Command Terminal", icon: SquareTerminal },
   { href: "/commerce", label: "Commerce Studio", icon: Store },
   { href: "/costs", label: "Costs & Analytics", icon: DollarSign },
   { href: "/settings", label: "Settings", icon: Settings },

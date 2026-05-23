@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Terminal, Send, Trash2, Copy, ChevronRight } from "lucide-react";
+import { Terminal, Send, Trash2, Copy } from "lucide-react";
 
 interface HistoryEntry {
   command: string;
@@ -12,17 +12,17 @@ interface HistoryEntry {
 }
 
 const QUICK_COMMANDS = [
-  "df -h /",
+  "pwd",
+  "ls -la",
+  "git status --short",
   "free -h",
   "uptime",
+  "df -h /",
   "ps aux | grep node",
-  "systemctl status mission-control",
+  "systemctl --user status openclaw-gateway",
   "pm2 list",
-  "ls /root/.openclaw/workspace",
-  "git -C /root/.openclaw/workspace/mission-control status",
-  "journalctl -u mission-control -n 20 --no-pager",
-  "docker ps",
-  "netstat -tlnp",
+  "journalctl --user -u openclaw-gateway -n 40 --no-pager",
+  "ss -tlnp",
   "cat /proc/loadavg",
 ];
 
@@ -69,7 +69,7 @@ export default function TerminalPage() {
         {
           command: trimmed,
           output: data.output || "",
-          error: !res.ok ? data.error : undefined,
+          error: !res.ok ? [data.error, data.hint].filter(Boolean).join("\n") : undefined,
           duration: data.duration,
           ts: new Date(),
         },
@@ -120,10 +120,10 @@ export default function TerminalPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "1.75rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: "0.125rem" }}>
-              Browser Terminal
+              Command Terminal
             </h1>
             <p style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-              Read-only commands only (ls, cat, df, ps, git status, etc.)
+              Read-only local diagnostics from the OpenClaw workspace
             </p>
           </div>
           <div style={{ display: "flex", gap: "0.5rem" }}>
