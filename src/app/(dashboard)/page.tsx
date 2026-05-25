@@ -22,6 +22,8 @@ import {
   ShieldCheck,
   Radio,
   Gauge,
+  Kanban,
+  Store,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -370,6 +372,8 @@ export default function DashboardPage() {
             {[
               { href: "/cron", icon: Calendar, label: "Cron Jobs", color: "#a78bfa" },
               { href: "/actions", icon: Zap, label: "Quick Actions", color: "var(--accent)" },
+              { href: "/commerce", icon: Store, label: "Commerce", color: "#22c55e" },
+              { href: "/commerce/work-board", icon: Kanban, label: "Work Board", color: "#38bdf8" },
               { href: "/system", icon: Server, label: "System", color: "var(--success)" },
               { href: "/logs", icon: Terminal, label: "Live Logs", color: "#60a5fa" },
               { href: "/memory", icon: Brain, label: "Memory", color: "#f59e0b" },
