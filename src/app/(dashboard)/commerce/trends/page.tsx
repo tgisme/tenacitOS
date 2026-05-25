@@ -7,6 +7,7 @@ import {
   Archive,
   CheckCircle2,
   ClipboardList,
+  KeyRound,
   Lightbulb,
   Loader2,
   RefreshCw,
@@ -302,6 +303,10 @@ export default function CommerceTrendsPage() {
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <Link className="btn-outline" href="/commerce/integrations">
+            <KeyRound className="w-4 h-4" />
+            Integrations
+          </Link>
           <Link className="btn-outline" href="/commerce">
             <Store className="w-4 h-4" />
             Commerce Studio

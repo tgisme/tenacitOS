@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ClipboardList,
   DollarSign,
+  KeyRound,
   Lightbulb,
   Loader2,
   PackageCheck,
@@ -384,6 +385,10 @@ export default function CommerceStudioPage() {
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <Link className="btn-outline" href="/commerce/integrations">
+            <KeyRound className="w-4 h-4" />
+            Integrations
+          </Link>
           <Link className="btn-outline" href="/commerce/trends">
             <Search className="w-4 h-4" />
             Trend Briefs

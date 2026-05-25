@@ -1,0 +1,95 @@
+{
+  "providers": [
+    {
+      "id": "etsy",
+      "name": "Etsy",
+      "status": "not-connected",
+      "mode": "marketplace",
+      "authMode": "oauth",
+      "lastSyncAt": null,
+      "nextStep": "Create an Etsy developer app, configure OAuth callback handling, and store credentials outside the repo.",
+      "capabilities": [
+        "Shop listing draft sync",
+        "Listing status checks",
+        "Revenue and order import",
+        "SEO tag validation"
+      ],
+      "blockedActions": [
+        "Publish listings",
+        "Edit live shop data",
+        "Message customers",
+        "Spend money"
+      ],
+      "approvalRules": [
+        "Human approval is required before creating or editing any Etsy listing.",
+        "Human approval is required before publishing a draft listing.",
+        "Agents may prepare local listing copy, tags, and pricing assumptions without external API calls."
+      ],
+      "health": {
+        "credentialConfigured": false,
+        "webhookConfigured": false,
+        "readScopeEnabled": false,
+        "writeScopeEnabled": false,
+        "lastError": null
+      }
+    },
+    {
+      "id": "printify",
+      "name": "Printify",
+      "status": "not-connected",
+      "mode": "fulfillment",
+      "authMode": "api-token",
+      "lastSyncAt": null,
+      "nextStep": "Create a restricted Printify API token, map preferred providers, and keep product creation in draft-only mode.",
+      "capabilities": [
+        "Catalog and provider lookup",
+        "Draft product creation",
+        "Mockup status checks",
+        "Production cost import"
+      ],
+      "blockedActions": [
+        "Publish products to sales channels",
+        "Submit orders",
+        "Change fulfillment provider",
+        "Spend money"
+      ],
+      "approvalRules": [
+        "Human approval is required before creating any Printify product.",
+        "Human approval is required before linking a Printify product to a marketplace listing.",
+        "Agents may research catalog options and estimate costs locally."
+      ],
+      "health": {
+        "credentialConfigured": false,
+        "webhookConfigured": false,
+        "readScopeEnabled": false,
+        "writeScopeEnabled": false,
+        "lastError": null
+      }
+    }
+  ],
+  "guardrails": [
+    "No external commerce API write actions run until credentials, approval rules, and dry-run logging are configured.",
+    "Agents can research trends, draft products, estimate costs, and prepare listing copy locally.",
+    "Any action that publishes, spends money, changes a shop, or contacts a customer requires explicit human approval."
+  ],
+  "setupChecklist": [
+    {
+      "id": "credentials-store",
+      "label": "Credential storage",
+      "status": "todo",
+      "notes": "Decide where Etsy OAuth secrets and Printify tokens live. Do not commit secrets."
+    },
+    {
+      "id": "approval-ledger",
+      "label": "Approval ledger",
+      "status": "todo",
+      "notes": "Persist who approved each external action, when, and exactly what payload was approved."
+    },
+    {
+      "id": "dry-run-sync",
+      "label": "Dry-run sync",
+      "status": "todo",
+      "notes": "Log intended Etsy and Printify payloads locally before enabling real API writes."
+    }
+  ]
+}
