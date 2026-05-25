@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -248,7 +248,7 @@ function Field({
   );
 }
 
-export default function CommerceStudioPage() {
+function CommerceStudioContent() {
   const searchParams = useSearchParams();
   const didApplyTrendPrefill = useRef(false);
   const [data, setData] = useState<CommerceResponse | null>(null);
@@ -672,5 +672,13 @@ export default function CommerceStudioPage() {
         </section>
       )}
     </div>
+  );
+}
+
+export default function CommerceStudioPage() {
+  return (
+    <Suspense fallback={<div className="card" style={{ borderRadius: "8px", padding: "40px", color: "var(--text-secondary)" }}>Loading commerce studio...</div>}>
+      <CommerceStudioContent />
+    </Suspense>
   );
 }

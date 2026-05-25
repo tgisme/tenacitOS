@@ -23,6 +23,7 @@ import {
   Radio,
   Gauge,
   Kanban,
+  Search,
   Store,
   ShieldAlert,
   ClipboardList,
@@ -93,6 +94,7 @@ interface CommerceWorkBoardSummary {
       title: string;
       subtitle: string;
       status: string;
+      nextAction: string;
       href: string;
       priority: number;
       meta: string[];
@@ -334,6 +336,10 @@ export default function DashboardPage() {
                   </div>
                   <h3 className="text-sm font-bold mb-1" style={{ color: 'var(--text-primary)', lineHeight: 1.25 }}>{item.title}</h3>
                   <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>{item.subtitle}</p>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>Next: </span>
+                    {item.nextAction}
+                  </p>
                   <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{item.status}</span>
                 </Link>
               )) : (

@@ -24,6 +24,7 @@ interface WorkBoardItem {
   title: string;
   status: string;
   subtitle: string;
+  nextAction: string;
   updatedAt: string | null;
   href: string;
   priority: number;
@@ -125,6 +126,19 @@ function BoardCard({ item }: { item: WorkBoardItem }) {
             {meta}
           </span>
         ))}
+      </div>
+
+      <div
+        style={{
+          borderTop: "1px solid var(--border)",
+          paddingTop: "10px",
+          color: "var(--text-primary)",
+          fontSize: "13px",
+          lineHeight: 1.4,
+        }}
+      >
+        <span style={{ color: "var(--text-muted)", fontWeight: 700 }}>Next: </span>
+        {item.nextAction}
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", color: "var(--text-muted)", fontSize: "12px" }}>

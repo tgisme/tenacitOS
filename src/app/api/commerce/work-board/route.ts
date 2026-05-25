@@ -65,6 +65,7 @@ interface WorkBoardItem {
   title: string;
   status: string;
   subtitle: string;
+  nextAction: string;
   updatedAt: string | null;
   href: string;
   priority: number;
@@ -149,6 +150,7 @@ export async function GET() {
         title: asString(trend.title, "Untitled trend"),
         status: trend.status,
         subtitle: asString(trend.niche, "Uncategorized"),
+        nextAction: trend.status === "promising" ? "Convert into a product draft or dismiss with notes." : "Add evidence until this has enough signal to convert.",
         updatedAt: asDateString(trend.updatedAt),
         href: "/commerce/trends",
         priority: asNumber(trend.opportunityScore),
@@ -163,6 +165,7 @@ export async function GET() {
         title: asString(product.title, "Untitled product"),
         status: product.status,
         subtitle: `${asString(product.niche, "Uncategorized")} · ${asString(product.sourceAgent, "Manual entry")}`,
+        nextAction: product.status === "revision" ? "Resolve requested changes and return it to review." : "Review copy, risk notes, and margin before approving or rejecting.",
         updatedAt: asDateString(product.updatedAt),
         href: "/commerce",
         priority: asNumber(product.confidence),
@@ -177,6 +180,7 @@ export async function GET() {
         title: asString(approval.productTitle, "Untitled product"),
         status: approval.status,
         subtitle: asString(approval.requestedAction, "Review requested"),
+        nextAction: approval.blockedExternalAction ? "Approve only the local preparation step; external writes stay blocked." : "Approve, reject, or request revision in the ledger.",
         updatedAt: asDateString(approval.updatedAt),
         href: "/commerce/approvals",
         priority: approval.blockedExternalAction ? 90 : 60,
@@ -191,6 +195,7 @@ export async function GET() {
         title: asString(provider.name, "Unknown provider"),
         status: provider.status,
         subtitle: asString(provider.nextStep, "Configure provider"),
+        nextAction: "Complete the setup checklist before enabling any marketplace or fulfillment writes.",
         updatedAt: null,
         href: "/commerce/integrations",
         priority: asStringArray(provider.blockedActions).length,
@@ -206,6 +211,7 @@ export async function GET() {
           title: asString(product.title, "Untitled product"),
           status: product.status,
           subtitle: asString(product.niche, "Uncategorized"),
+          nextAction: "Continue local listing, mockup, or cost work without publishing externally.",
           updatedAt: asDateString(product.updatedAt),
           href: "/commerce",
           priority: asNumber(product.confidence),
@@ -219,6 +225,7 @@ export async function GET() {
           title: asString(approval.productTitle, "Untitled product"),
           status: approval.status,
           subtitle: asString(approval.requestedAction, "Approved action"),
+          nextAction: "Use this approval as local evidence only; external execution still needs explicit approval.",
           updatedAt: asDateString(approval.updatedAt),
           href: "/commerce/approvals",
           priority: 70,
