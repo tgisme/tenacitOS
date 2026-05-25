@@ -12,7 +12,7 @@ function isAuthenticated(request: NextRequest): boolean {
   return !!(authCookie && authCookie.value === process.env.AUTH_SECRET);
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always allow public pages (login)
@@ -53,5 +53,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public files (with extension)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)",
+  ],
 };
