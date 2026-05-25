@@ -6,6 +6,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ClipboardList,
+  Columns3,
   KeyRound,
   Loader2,
   Lock,
@@ -193,6 +194,10 @@ export default function CommerceIntegrationsPage() {
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <Link className="btn-outline" href="/commerce/work-board">
+            <Columns3 className="w-4 h-4" />
+            Work Board
+          </Link>
           <Link className="btn-outline" href="/commerce/approvals">
             <ClipboardList className="w-4 h-4" />
             Approvals

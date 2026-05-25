@@ -7,6 +7,7 @@ import {
   Archive,
   CheckCircle2,
   ClipboardList,
+  Columns3,
   KeyRound,
   Lightbulb,
   Loader2,
@@ -303,6 +304,10 @@ export default function CommerceTrendsPage() {
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <Link className="btn-outline" href="/commerce/work-board">
+            <Columns3 className="w-4 h-4" />
+            Work Board
+          </Link>
           <Link className="btn-outline" href="/commerce/approvals">
             <ClipboardList className="w-4 h-4" />
             Approvals
