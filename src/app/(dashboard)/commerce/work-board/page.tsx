@@ -63,6 +63,20 @@ interface WorkBoardResponse {
   };
 }
 
+interface LocalCommerceTask {
+  id: string;
+  name: string;
+  lastStatus?: string;
+  updatedAt?: string;
+  source?: {
+    href?: string;
+  };
+}
+
+type TaskActionState =
+  | { status: "created" | "existing"; task: LocalCommerceTask }
+  | { status: "error"; message: string };
+
 const kindStyles: Record<WorkBoardKind, { label: string; color: string; bg: string }> = {
   trend: { label: "Trend", color: "var(--info)", bg: "var(--info-soft)" },
   product: { label: "Product", color: "var(--warning)", bg: "var(--warning-soft)" },
@@ -145,6 +159,10 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
   return <p style={{ color: "var(--text-muted)", fontSize: "13px", lineHeight: 1.5 }}>{children}</p>;
 }
 
+function formatTaskId(id: string) {
+  return id.length > 18 ? `${id.slice(0, 18)}...` : id;
+}
+
 function BoardCard({ item, onOpen }: { item: WorkBoardItem; onOpen: (item: WorkBoardItem) => void }) {
   const kind = kindStyles[item.kind];
 
@@ -208,12 +226,25 @@ function BoardCard({ item, onOpen }: { item: WorkBoardItem; onOpen: (item: WorkB
 function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () => void }) {
   const kind = kindStyles[item.kind];
   const [isCreatingTask, setIsCreatingTask] = useState(false);
-  const [taskMessage, setTaskMessage] = useState<string | null>(null);
+  const [taskAction, setTaskAction] = useState<TaskActionState | null>(null);
+  const taskSearchHref = taskAction?.status === "created" || taskAction?.status === "existing"
+    ? `/search?q=${encodeURIComponent(taskAction.task.name || taskAction.task.id)}`
+    : null;
+  const hasLocalTask = taskAction?.status === "created" || taskAction?.status === "existing";
+  const taskButtonLabel = isCreatingTask
+    ? "Creating..."
+    : taskAction?.status === "created"
+      ? "Task created"
+      : taskAction?.status === "existing"
+        ? "Task exists"
+        : taskAction?.status === "error"
+          ? "Retry create"
+          : "Create task";
 
   const createTask = async () => {
     try {
       setIsCreatingTask(true);
-      setTaskMessage(null);
+      setTaskAction(null);
       const response = await fetch("/api/commerce/work-board", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -221,13 +252,18 @@ function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () =
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result?.error || "Failed to create task");
-      setTaskMessage(result.created ? "Local task created." : "A local task already exists for this item.");
+      setTaskAction({ status: result.created ? "created" : "existing", task: result.task });
     } catch (error) {
-      setTaskMessage(error instanceof Error ? error.message : "Failed to create task");
+      setTaskAction({ status: "error", message: error instanceof Error ? error.message : "Failed to create task" });
     } finally {
       setIsCreatingTask(false);
     }
   };
+
+  useEffect(() => {
+    setTaskAction(null);
+    setIsCreatingTask(false);
+  }, [item.id]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -285,19 +321,56 @@ function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () =
         </div>
 
         <div style={{ padding: "20px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "22px" }}>
-          {taskMessage && (
+          {taskAction && (
             <div
               className="card"
               style={{
                 borderRadius: "8px",
-                padding: "12px 14px",
-                color: taskMessage.includes("Failed") ? "var(--negative)" : "var(--positive)",
-                backgroundColor: taskMessage.includes("Failed") ? "var(--negative-soft)" : "var(--positive-soft)",
-                fontSize: "13px",
-                fontWeight: 700,
+                padding: "14px",
+                color: taskAction.status === "error" ? "var(--negative)" : "var(--positive)",
+                backgroundColor: taskAction.status === "error" ? "var(--negative-soft)" : "var(--positive-soft)",
+                display: "flex",
+                gap: "12px",
+                alignItems: "flex-start",
               }}
             >
-              {taskMessage}
+              {taskAction.status === "error" ? (
+                <AlertCircle className="w-5 h-5" style={{ flexShrink: 0 }} />
+              ) : (
+                <CheckCircle2 className="w-5 h-5" style={{ flexShrink: 0 }} />
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
+                <p style={{ color: "inherit", fontSize: "13px", fontWeight: 800 }}>
+                  {taskAction.status === "created"
+                    ? "Local task created"
+                    : taskAction.status === "existing"
+                      ? "Local task already exists"
+                      : "Task creation failed"}
+                </p>
+                {taskAction.status === "error" ? (
+                  <p style={{ color: "inherit", fontSize: "13px", lineHeight: 1.45 }}>{taskAction.message}</p>
+                ) : (
+                  <>
+                    <p style={{ color: "var(--text-primary)", fontSize: "13px", lineHeight: 1.45 }}>
+                      {taskAction.task.name}
+                    </p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      <span className="badge" style={{ backgroundColor: "var(--surface)", color: "var(--text-secondary)" }}>
+                        {taskAction.task.lastStatus || "todo"}
+                      </span>
+                      <span className="badge" title={taskAction.task.id} style={{ backgroundColor: "var(--surface)", color: "var(--text-secondary)" }}>
+                        ID {formatTaskId(taskAction.task.id)}
+                      </span>
+                    </div>
+                    {taskSearchHref && (
+                      <Link className="btn-ghost" href={taskSearchHref} style={{ alignSelf: "flex-start", marginTop: "2px" }}>
+                        <Search className="w-4 h-4" />
+                        Find task
+                      </Link>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
 
@@ -368,11 +441,19 @@ function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () =
         </div>
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", gap: "10px" }}>
-          <span style={{ color: "var(--text-muted)", fontSize: "12px", alignSelf: "center" }}>Read-only local detail</span>
+          <span style={{ color: "var(--text-muted)", fontSize: "12px", alignSelf: "center" }}>
+            {hasLocalTask ? "Local task linked" : "Read-only local detail"}
+          </span>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button className="btn-outline" onClick={createTask} disabled={isCreatingTask}>
-              {isCreatingTask ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
-              Create task
+            <button className="btn-outline" onClick={createTask} disabled={isCreatingTask || hasLocalTask}>
+              {isCreatingTask ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : hasLocalTask ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <ClipboardList className="w-4 h-4" />
+              )}
+              {taskButtonLabel}
             </button>
             <Link className="btn-primary" href={item.href}>
               <ExternalLink className="w-4 h-4" />
