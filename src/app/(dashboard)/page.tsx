@@ -24,6 +24,9 @@ import {
   Gauge,
   Kanban,
   Store,
+  ShieldAlert,
+  ClipboardList,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -74,6 +77,29 @@ interface SessionSummary {
   }>;
 }
 
+interface CommerceWorkBoardSummary {
+  guardrail: string;
+  stats: {
+    openResearch: number;
+    reviewQueue: number;
+    setupBlockers: number;
+    readyLocalWork: number;
+  };
+  columns: Array<{
+    id: "research" | "review" | "setup" | "ready";
+    title: string;
+    items: Array<{
+      id: string;
+      title: string;
+      subtitle: string;
+      status: string;
+      href: string;
+      priority: number;
+      meta: string[];
+    }>;
+  }>;
+}
+
 function formatHostUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
@@ -86,6 +112,7 @@ export default function DashboardPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [runtime, setRuntime] = useState<RuntimeInfo | null>(null);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary>({ total: 0, sessions: [] });
+  const [commerceSummary, setCommerceSummary] = useState<CommerceWorkBoardSummary | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -93,7 +120,8 @@ export default function DashboardPage() {
       fetch("/api/agents").then(r => r.json()),
       fetch("/api/runtime").then(r => r.json()),
       fetch("/api/sessions").then(r => r.json()),
-    ]).then(([actStats, agentsData, runtimeData, sessionsData]) => {
+      fetch("/api/commerce/work-board").then(r => r.ok ? r.json() : null),
+    ]).then(([actStats, agentsData, runtimeData, sessionsData, commerceData]) => {
       setStats({
         total: actStats.total || 0,
         today: actStats.today || 0,
@@ -107,10 +135,15 @@ export default function DashboardPage() {
         total: sessionsData.total || 0,
         sessions: sessionsData.sessions || [],
       });
+      setCommerceSummary(commerceData);
     }).catch(console.error);
   }, []);
 
   const mainSession = sessionSummary.sessions[0];
+  const commerceAttentionItems = commerceSummary?.columns
+    .flatMap((column) => column.items.map((item) => ({ ...item, lane: column.title })))
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 3) ?? [];
 
   return (
     <div className="p-4 md:p-8">
@@ -212,6 +245,107 @@ export default function DashboardPage() {
         {/* Weather Widget */}
         <div className="lg:col-span-1">
           <WeatherWidget />
+        </div>
+      </div>
+
+      {/* Commerce Mission Queue */}
+      <div
+        className="mb-6 rounded-xl overflow-hidden"
+        style={{
+          backgroundColor: 'var(--card)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        <div
+          className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="accent-line" />
+            <h2
+              className="text-base font-semibold"
+              style={{
+                fontFamily: 'var(--font-heading)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <Store className="inline-block w-5 h-5 mr-2 mb-1" />
+              Commerce Mission Queue
+            </h2>
+          </div>
+          <Link
+            href="/commerce/work-board"
+            className="text-sm font-medium inline-flex items-center gap-1"
+            style={{ color: 'var(--accent)' }}
+          >
+            Open board <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        <div className="p-5 grid grid-cols-1 xl:grid-cols-5 gap-4">
+          <div className="xl:col-span-2 grid grid-cols-2 gap-3">
+            {[
+              { label: "Research", value: commerceSummary?.stats.openResearch ?? 0, icon: Search, color: "var(--info)" },
+              { label: "Review", value: commerceSummary?.stats.reviewQueue ?? 0, icon: ClipboardList, color: "var(--warning)" },
+              { label: "Blockers", value: commerceSummary?.stats.setupBlockers ?? 0, icon: ShieldAlert, color: "var(--error)" },
+              { label: "Ready Local", value: commerceSummary?.stats.readyLocalWork ?? 0, icon: Kanban, color: "var(--success)" },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <Link
+                key={label}
+                href="/commerce/work-board"
+                className="p-3 rounded-lg transition-all hover:scale-[1.02]"
+                style={{ backgroundColor: 'var(--card-elevated)', border: '1px solid var(--border)' }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon className="w-4 h-4" style={{ color }} />
+                  <span className="text-xs font-bold uppercase" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                </div>
+                <div className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{value}</div>
+              </Link>
+            ))}
+          </div>
+
+          <div className="xl:col-span-3">
+            <div
+              className="mb-3 rounded-lg px-3 py-2 flex items-start gap-2"
+              style={{
+                backgroundColor: 'var(--warning-soft)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <ShieldAlert className="w-4 h-4 mt-0.5" style={{ color: 'var(--warning)' }} />
+              <span className="text-xs font-semibold">
+                {commerceSummary?.guardrail ?? "Commerce actions are summarized locally and external writes stay blocked."}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {commerceAttentionItems.length > 0 ? commerceAttentionItems.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className="p-3 rounded-lg transition-all hover:scale-[1.02]"
+                  style={{ backgroundColor: 'var(--card-elevated)', border: '1px solid var(--border)', textDecoration: 'none' }}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-bold uppercase" style={{ color: 'var(--accent)' }}>{item.lane}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>P{item.priority}</span>
+                  </div>
+                  <h3 className="text-sm font-bold mb-1" style={{ color: 'var(--text-primary)', lineHeight: 1.25 }}>{item.title}</h3>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>{item.subtitle}</p>
+                  <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{item.status}</span>
+                </Link>
+              )) : (
+                <div
+                  className="md:col-span-3 rounded-lg p-4 text-sm"
+                  style={{ backgroundColor: 'var(--card-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                >
+                  No commerce queue items need attention right now.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
