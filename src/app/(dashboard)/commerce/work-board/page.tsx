@@ -196,6 +196,27 @@ function BoardCard({ item, onOpen }: { item: WorkBoardItem; onOpen: (item: WorkB
 
 function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () => void }) {
   const kind = kindStyles[item.kind];
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [taskMessage, setTaskMessage] = useState<string | null>(null);
+
+  const createTask = async () => {
+    try {
+      setIsCreatingTask(true);
+      setTaskMessage(null);
+      const response = await fetch("/api/commerce/work-board", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result?.error || "Failed to create task");
+      setTaskMessage(result.created ? "Local task created." : "A local task already exists for this item.");
+    } catch (error) {
+      setTaskMessage(error instanceof Error ? error.message : "Failed to create task");
+    } finally {
+      setIsCreatingTask(false);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -253,6 +274,22 @@ function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () =
         </div>
 
         <div style={{ padding: "20px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "22px" }}>
+          {taskMessage && (
+            <div
+              className="card"
+              style={{
+                borderRadius: "8px",
+                padding: "12px 14px",
+                color: taskMessage.includes("Failed") ? "var(--negative)" : "var(--positive)",
+                backgroundColor: taskMessage.includes("Failed") ? "var(--negative-soft)" : "var(--positive-soft)",
+                fontSize: "13px",
+                fontWeight: 700,
+              }}
+            >
+              {taskMessage}
+            </div>
+          )}
+
           <DetailSection title="Next Action">
             <div className="card" style={{ borderRadius: "8px", padding: "14px", backgroundColor: "var(--surface-elevated)" }}>
               <p style={{ color: "var(--text-primary)", fontSize: "14px", lineHeight: 1.5 }}>{item.nextAction}</p>
@@ -321,10 +358,16 @@ function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () =
 
         <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", gap: "10px" }}>
           <span style={{ color: "var(--text-muted)", fontSize: "12px", alignSelf: "center" }}>Read-only local detail</span>
-          <Link className="btn-primary" href={item.href}>
-            <ExternalLink className="w-4 h-4" />
-            Open source
-          </Link>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button className="btn-outline" onClick={createTask} disabled={isCreatingTask}>
+              {isCreatingTask ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+              Create task
+            </button>
+            <Link className="btn-primary" href={item.href}>
+              <ExternalLink className="w-4 h-4" />
+              Open source
+            </Link>
+          </div>
         </div>
       </aside>
     </div>
