@@ -385,6 +385,10 @@ export default function CommerceStudioPage() {
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <Link className="btn-outline" href="/commerce/approvals">
+            <ClipboardList className="w-4 h-4" />
+            Approvals
+          </Link>
           <Link className="btn-outline" href="/commerce/integrations">
             <KeyRound className="w-4 h-4" />
             Integrations

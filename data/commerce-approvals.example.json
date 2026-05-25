@@ -1,0 +1,29 @@
+{
+  "records": [
+    {
+      "id": "example-approval-record",
+      "createdAt": "2026-05-25T00:00:00.000Z",
+      "updatedAt": "2026-05-25T00:00:00.000Z",
+      "status": "approved",
+      "productId": "example-local-draft",
+      "productTitle": "AI Workflow Desk Mat",
+      "requestedAction": "prepare-etsy-draft",
+      "reviewer": "T",
+      "decisionNote": "Approved for local draft preparation only. Do not publish externally.",
+      "riskChecks": [
+        "No platform logos or trademarked model names",
+        "Margin estimate is positive",
+        "External publishing remains disabled"
+      ],
+      "blockedExternalAction": true,
+      "auditTrail": [
+        {
+          "id": "example-approval-audit",
+          "timestamp": "2026-05-25T00:00:00.000Z",
+          "action": "created",
+          "note": "Example approval record created locally. No external commerce action was taken."
+        }
+      ]
+    }
+  ]
+}
