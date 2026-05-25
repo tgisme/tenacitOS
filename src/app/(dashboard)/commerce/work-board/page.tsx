@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Columns3,
+  Filter,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -17,6 +18,8 @@ import {
 import { formatDistanceToNow } from "date-fns";
 
 type WorkBoardKind = "trend" | "product" | "approval" | "integration";
+type WorkBoardLane = "all" | "research" | "review" | "setup" | "ready";
+type WorkBoardKindFilter = "all" | WorkBoardKind;
 
 interface WorkBoardItem {
   id: string;
@@ -55,6 +58,22 @@ const kindStyles: Record<WorkBoardKind, { label: string; color: string; bg: stri
   approval: { label: "Approval", color: "var(--positive)", bg: "var(--positive-soft)" },
   integration: { label: "Setup", color: "var(--negative)", bg: "var(--negative-soft)" },
 };
+
+const laneOptions: Array<{ id: WorkBoardLane; label: string }> = [
+  { id: "all", label: "All lanes" },
+  { id: "research", label: "Research" },
+  { id: "review", label: "Review" },
+  { id: "setup", label: "Setup" },
+  { id: "ready", label: "Ready" },
+];
+
+const kindOptions: Array<{ id: WorkBoardKindFilter; label: string }> = [
+  { id: "all", label: "All types" },
+  { id: "trend", label: "Trends" },
+  { id: "product", label: "Products" },
+  { id: "approval", label: "Approvals" },
+  { id: "integration", label: "Setup" },
+];
 
 function MetricTile({
   icon: Icon,
@@ -153,9 +172,38 @@ export default function CommerceWorkBoardPage() {
   const [data, setData] = useState<WorkBoardResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [laneFilter, setLaneFilter] = useState<WorkBoardLane>("all");
+  const [kindFilter, setKindFilter] = useState<WorkBoardKindFilter>("all");
 
   const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
   const stats = data?.stats ?? { openResearch: 0, reviewQueue: 0, setupBlockers: 0, readyLocalWork: 0 };
+  const totalItems = columns.reduce((count, column) => count + column.items.length, 0);
+  const normalizedQuery = query.trim().toLowerCase();
+  const hasFilters = normalizedQuery.length > 0 || laneFilter !== "all" || kindFilter !== "all";
+  const filteredColumns = useMemo(
+    () =>
+      columns
+        .filter((column) => laneFilter === "all" || column.id === laneFilter)
+        .map((column) => ({
+          ...column,
+          items: column.items.filter((item) => {
+            const matchesKind = kindFilter === "all" || item.kind === kindFilter;
+            const searchableText = [
+              item.title,
+              item.subtitle,
+              item.status,
+              item.nextAction,
+              ...item.meta,
+            ].join(" ").toLowerCase();
+            const matchesQuery = normalizedQuery.length === 0 || searchableText.includes(normalizedQuery);
+
+            return matchesKind && matchesQuery;
+          }),
+        })),
+    [columns, kindFilter, laneFilter, normalizedQuery],
+  );
+  const visibleItems = filteredColumns.reduce((count, column) => count + column.items.length, 0);
 
   const loadBoard = useCallback(async () => {
     try {
@@ -217,6 +265,83 @@ export default function CommerceWorkBoardPage() {
         <MetricTile icon={CheckCircle2} label="Ready Local" value={stats.readyLocalWork} color="var(--positive)" />
       </section>
 
+      <section
+        className="card"
+        style={{
+          borderRadius: "8px",
+          padding: "14px",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "10px",
+          alignItems: "center",
+        }}
+      >
+        <label style={{ position: "relative", minWidth: "220px", flex: "1 1 280px" }}>
+          <Search
+            className="w-4 h-4"
+            style={{
+              color: "var(--text-muted)",
+              position: "absolute",
+              left: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+            }}
+          />
+          <input
+            className="input"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search queue..."
+            style={{ paddingLeft: "36px", width: "100%" }}
+          />
+        </label>
+
+        <select
+          className="input"
+          value={laneFilter}
+          onChange={(event) => setLaneFilter(event.target.value as WorkBoardLane)}
+          style={{ minWidth: "150px", flex: "0 1 180px" }}
+        >
+          {laneOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="input"
+          value={kindFilter}
+          onChange={(event) => setKindFilter(event.target.value as WorkBoardKindFilter)}
+          style={{ minWidth: "150px", flex: "0 1 180px" }}
+        >
+          {kindOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", alignItems: "center", flex: "1 1 180px" }}>
+          <span style={{ color: "var(--text-secondary)", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" }}>
+            {visibleItems} / {totalItems} shown
+          </span>
+          {hasFilters && (
+            <button
+              className="btn-outline"
+              onClick={() => {
+                setQuery("");
+                setLaneFilter("all");
+                setKindFilter("all");
+              }}
+            >
+              <Filter className="w-4 h-4" />
+              Clear
+            </button>
+          )}
+        </div>
+      </section>
+
       <div
         className="card"
         style={{
@@ -247,10 +372,15 @@ export default function CommerceWorkBoardPage() {
         </div>
       ) : (
         <section className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-          {columns.map((column) => (
+          {filteredColumns.map((column) => (
             <div key={column.id} style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>
               <div>
-                <h2 style={{ color: "var(--text-primary)", fontSize: "17px", fontWeight: 700 }}>{column.title}</h2>
+                <h2 style={{ color: "var(--text-primary)", fontSize: "17px", fontWeight: 700 }}>
+                  {column.title}{" "}
+                  <span style={{ color: "var(--text-muted)", fontSize: "12px", fontWeight: 700 }}>
+                    {column.items.length}
+                  </span>
+                </h2>
                 <p style={{ color: "var(--text-secondary)", fontSize: "12px", marginTop: "4px" }}>{column.description}</p>
               </div>
               {column.items.length === 0 ? (
