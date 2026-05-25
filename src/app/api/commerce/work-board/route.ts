@@ -20,43 +20,102 @@ type ApprovalStatus = "requested" | "approved" | "rejected" | "needs-revision" |
 
 interface ProductSummary {
   id: string;
+  createdAt?: string;
   title: string;
   status: ProductStatus;
   niche: string;
   sourceAgent: string;
   confidence: number;
   updatedAt: string;
+  trendBrief?: {
+    summary?: string;
+    evidence?: string[];
+    seasonality?: string;
+    competition?: string;
+  };
+  mockupNotes?: string;
+  pricingAssumptions?: string;
   financials?: {
+    targetPrice?: number | null;
+    productionCost?: number | null;
+    shippingCost?: number | null;
+    etsyFeeEstimate?: number | null;
     expectedMargin?: number | null;
   };
+  tags?: string[];
+  riskNotes?: string;
+  etsyCopy?: {
+    title?: string;
+    description?: string;
+    seoNotes?: string;
+  };
+  auditTrail?: AuditEntry[];
 }
 
 interface TrendSummary {
   id: string;
+  createdAt?: string;
   title: string;
   status: TrendStatus;
+  sourceAgent?: string;
+  marketplace?: string;
   niche: string;
+  summary?: string;
+  evidence?: Array<string | { source?: string; signal?: string; url?: string; observedAt?: string }>;
+  keywords?: string[];
+  suggestedProducts?: string[];
+  seasonality?: string;
+  competition?: string;
+  riskNotes?: string;
+  confidence?: number;
   opportunityScore: number;
   updatedAt: string;
   linkedProductIds: string[];
+  auditTrail?: AuditEntry[];
 }
 
 interface ApprovalSummary {
   id: string;
+  createdAt?: string;
   status: ApprovalStatus;
   productId: string;
   productTitle: string;
   requestedAction: string;
+  reviewer?: string;
+  decisionNote?: string;
+  riskChecks?: string[];
   updatedAt: string;
   blockedExternalAction: boolean;
+  auditTrail?: AuditEntry[];
 }
 
 interface IntegrationSummary {
   id: string;
   name: string;
   status: string;
+  mode?: string;
+  authMode?: string;
+  lastSyncAt?: string | null;
   blockedActions: string[];
   nextStep: string;
+  capabilities?: string[];
+  approvalRules?: string[];
+  health?: Record<string, boolean | string | null>;
+}
+
+interface AuditEntry {
+  id?: string;
+  timestamp?: string;
+  action?: string;
+  note?: string;
+}
+
+interface WorkBoardDetail {
+  summary: string;
+  evidence: string[];
+  riskNotes: string[];
+  pricing: Array<{ label: string; value: string }>;
+  auditTrail: Array<{ timestamp: string | null; action: string; note: string }>;
 }
 
 interface WorkBoardItem {
@@ -70,6 +129,7 @@ interface WorkBoardItem {
   href: string;
   priority: number;
   meta: string[];
+  detail: WorkBoardDetail;
 }
 
 interface WorkBoardColumn {
@@ -121,6 +181,45 @@ function formatMargin(value: number | null | undefined) {
   return value === null || value === undefined ? "Margin n/a" : `Margin $${value}`;
 }
 
+function formatCurrency(value: number | null | undefined) {
+  return value === null || value === undefined ? "n/a" : `$${value}`;
+}
+
+function formatBoolean(value: boolean | string | null | undefined) {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return value === null || value === undefined || value === "" ? "n/a" : String(value);
+}
+
+function normalizeAuditTrail(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => {
+      const raw = entry as AuditEntry;
+      return {
+        timestamp: asDateString(raw.timestamp),
+        action: asString(raw.action, "updated"),
+        note: asString(raw.note, "No note recorded."),
+      };
+    })
+    .filter((entry) => entry.note)
+    .slice(0, 5);
+}
+
+function formatTrendEvidence(value: TrendSummary["evidence"]) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      const signal = asString(entry.signal);
+      const source = asString(entry.source);
+      return [source, signal].filter(Boolean).join(": ");
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
 function sortByPriority(items: WorkBoardItem[]) {
   return [...items].sort((a, b) => {
     if (a.priority !== b.priority) return b.priority - a.priority;
@@ -155,6 +254,26 @@ export async function GET() {
         href: "/commerce/trends",
         priority: asNumber(trend.opportunityScore),
         meta: [`Opportunity ${asNumber(trend.opportunityScore)}%`, `${asStringArray(trend.linkedProductIds).length} linked products`],
+        detail: {
+          summary: asString(trend.summary, "No trend summary recorded yet."),
+          evidence: [
+            ...formatTrendEvidence(trend.evidence),
+            ...asStringArray(trend.keywords).slice(0, 4).map((keyword) => `Keyword: ${keyword}`),
+            ...asStringArray(trend.suggestedProducts).slice(0, 3).map((product) => `Suggested product: ${product}`),
+          ].slice(0, 8),
+          riskNotes: [
+            asString(trend.riskNotes),
+            asString(trend.competition) ? `Competition: ${trend.competition}` : "",
+            asString(trend.seasonality) ? `Seasonality: ${trend.seasonality}` : "",
+          ].filter(Boolean),
+          pricing: [
+            { label: "Opportunity", value: `${asNumber(trend.opportunityScore)}%` },
+            { label: "Confidence", value: `${asNumber(trend.confidence)}%` },
+            { label: "Marketplace", value: asString(trend.marketplace, "n/a") },
+            { label: "Source", value: asString(trend.sourceAgent, "Manual entry") },
+          ],
+          auditTrail: normalizeAuditTrail(trend.auditTrail),
+        },
       }));
 
     const productReviewItems: WorkBoardItem[] = products
@@ -170,6 +289,30 @@ export async function GET() {
         href: "/commerce",
         priority: asNumber(product.confidence),
         meta: [`Confidence ${asNumber(product.confidence)}%`, formatMargin(product.financials?.expectedMargin)],
+        detail: {
+          summary: asString(product.trendBrief?.summary, asString(product.etsyCopy?.description, "No product summary recorded yet.")),
+          evidence: [
+            ...asStringArray(product.trendBrief?.evidence),
+            asString(product.mockupNotes) ? `Mockup: ${product.mockupNotes}` : "",
+            asString(product.etsyCopy?.title) ? `Listing title: ${product.etsyCopy?.title}` : "",
+            asString(product.etsyCopy?.seoNotes) ? `SEO: ${product.etsyCopy?.seoNotes}` : "",
+            ...asStringArray(product.tags).slice(0, 5).map((tag) => `Tag: ${tag}`),
+          ].filter(Boolean).slice(0, 8),
+          riskNotes: [
+            asString(product.riskNotes),
+            asString(product.trendBrief?.competition) ? `Competition: ${product.trendBrief?.competition}` : "",
+            asString(product.trendBrief?.seasonality) ? `Seasonality: ${product.trendBrief?.seasonality}` : "",
+          ].filter(Boolean),
+          pricing: [
+            { label: "Target price", value: formatCurrency(product.financials?.targetPrice) },
+            { label: "Production", value: formatCurrency(product.financials?.productionCost) },
+            { label: "Shipping", value: formatCurrency(product.financials?.shippingCost) },
+            { label: "Etsy fees", value: formatCurrency(product.financials?.etsyFeeEstimate) },
+            { label: "Expected margin", value: formatCurrency(product.financials?.expectedMargin) },
+            { label: "Assumptions", value: asString(product.pricingAssumptions, "n/a") },
+          ],
+          auditTrail: normalizeAuditTrail(product.auditTrail),
+        },
       }));
 
     const approvalItems: WorkBoardItem[] = approvals
@@ -185,6 +328,20 @@ export async function GET() {
         href: "/commerce/approvals",
         priority: approval.blockedExternalAction ? 90 : 60,
         meta: [approval.blockedExternalAction ? "External action blocked" : "Local action", asString(approval.productId, "No product id")],
+        detail: {
+          summary: asString(approval.decisionNote, "Approval decision details are not recorded yet."),
+          evidence: asStringArray(approval.riskChecks),
+          riskNotes: [
+            approval.blockedExternalAction ? "External commerce action remains blocked." : "Approved action is local-only.",
+            asString(approval.productId) ? `Product id: ${approval.productId}` : "",
+          ].filter(Boolean),
+          pricing: [
+            { label: "Requested action", value: asString(approval.requestedAction, "n/a") },
+            { label: "Reviewer", value: asString(approval.reviewer, "Unassigned") },
+            { label: "External write", value: approval.blockedExternalAction ? "Blocked" : "Not blocked" },
+          ],
+          auditTrail: normalizeAuditTrail(approval.auditTrail),
+        },
       }));
 
     const setupItems: WorkBoardItem[] = integrations
@@ -200,6 +357,21 @@ export async function GET() {
         href: "/commerce/integrations",
         priority: asStringArray(provider.blockedActions).length,
         meta: [`${asStringArray(provider.blockedActions).length} blocked actions`],
+        detail: {
+          summary: asString(provider.nextStep, "Configure provider credentials and approval rules."),
+          evidence: asStringArray(provider.capabilities).map((capability) => `Capability: ${capability}`),
+          riskNotes: [...asStringArray(provider.blockedActions), ...asStringArray(provider.approvalRules)].slice(0, 8),
+          pricing: [
+            { label: "Mode", value: asString(provider.mode, "n/a") },
+            { label: "Auth", value: asString(provider.authMode, "n/a") },
+            { label: "Last sync", value: asString(provider.lastSyncAt, "Never") },
+            { label: "Credentials", value: formatBoolean(provider.health?.credentialConfigured) },
+            { label: "Read scope", value: formatBoolean(provider.health?.readScopeEnabled) },
+            { label: "Write scope", value: formatBoolean(provider.health?.writeScopeEnabled) },
+            { label: "Last error", value: formatBoolean(provider.health?.lastError) },
+          ],
+          auditTrail: [],
+        },
       }));
 
     const readyItems: WorkBoardItem[] = [
@@ -216,6 +388,30 @@ export async function GET() {
           href: "/commerce",
           priority: asNumber(product.confidence),
           meta: [formatMargin(product.financials?.expectedMargin)],
+          detail: {
+            summary: asString(product.trendBrief?.summary, asString(product.etsyCopy?.description, "No product summary recorded yet.")),
+            evidence: [
+              ...asStringArray(product.trendBrief?.evidence),
+              asString(product.mockupNotes) ? `Mockup: ${product.mockupNotes}` : "",
+              asString(product.etsyCopy?.title) ? `Listing title: ${product.etsyCopy?.title}` : "",
+              asString(product.etsyCopy?.seoNotes) ? `SEO: ${product.etsyCopy?.seoNotes}` : "",
+              ...asStringArray(product.tags).slice(0, 5).map((tag) => `Tag: ${tag}`),
+            ].filter(Boolean).slice(0, 8),
+            riskNotes: [
+              asString(product.riskNotes),
+              asString(product.trendBrief?.competition) ? `Competition: ${product.trendBrief?.competition}` : "",
+              asString(product.trendBrief?.seasonality) ? `Seasonality: ${product.trendBrief?.seasonality}` : "",
+            ].filter(Boolean),
+            pricing: [
+              { label: "Target price", value: formatCurrency(product.financials?.targetPrice) },
+              { label: "Production", value: formatCurrency(product.financials?.productionCost) },
+              { label: "Shipping", value: formatCurrency(product.financials?.shippingCost) },
+              { label: "Etsy fees", value: formatCurrency(product.financials?.etsyFeeEstimate) },
+              { label: "Expected margin", value: formatCurrency(product.financials?.expectedMargin) },
+              { label: "Assumptions", value: asString(product.pricingAssumptions, "n/a") },
+            ],
+            auditTrail: normalizeAuditTrail(product.auditTrail),
+          },
         })),
       ...approvals
         .filter((approval) => ["approved", "executed-locally"].includes(approval.status))
@@ -230,6 +426,20 @@ export async function GET() {
           href: "/commerce/approvals",
           priority: 70,
           meta: [approval.blockedExternalAction ? "External action still blocked" : "Local execution recorded"],
+          detail: {
+            summary: asString(approval.decisionNote, "Approval decision details are not recorded yet."),
+            evidence: asStringArray(approval.riskChecks),
+            riskNotes: [
+              approval.blockedExternalAction ? "External commerce action remains blocked." : "Approved action is local-only.",
+              asString(approval.productId) ? `Product id: ${approval.productId}` : "",
+            ].filter(Boolean),
+            pricing: [
+              { label: "Requested action", value: asString(approval.requestedAction, "n/a") },
+              { label: "Reviewer", value: asString(approval.reviewer, "Unassigned") },
+              { label: "External write", value: approval.blockedExternalAction ? "Blocked" : "Not blocked" },
+            ],
+            auditTrail: normalizeAuditTrail(approval.auditTrail),
+          },
         })),
     ];
 

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Columns3,
+  ExternalLink,
   Filter,
   KeyRound,
   Loader2,
@@ -14,12 +15,21 @@ import {
   Search,
   ShieldAlert,
   Store,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 type WorkBoardKind = "trend" | "product" | "approval" | "integration";
 type WorkBoardLane = "all" | "research" | "review" | "setup" | "ready";
 type WorkBoardKindFilter = "all" | WorkBoardKind;
+
+interface WorkBoardDetail {
+  summary: string;
+  evidence: string[];
+  riskNotes: string[];
+  pricing: Array<{ label: string; value: string }>;
+  auditTrail: Array<{ timestamp: string | null; action: string; note: string }>;
+}
 
 interface WorkBoardItem {
   id: string;
@@ -32,6 +42,7 @@ interface WorkBoardItem {
   href: string;
   priority: number;
   meta: string[];
+  detail: WorkBoardDetail;
 }
 
 interface WorkBoardColumn {
@@ -110,13 +121,26 @@ function MetricTile({
   );
 }
 
-function BoardCard({ item }: { item: WorkBoardItem }) {
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <h3 style={{ color: "var(--text-primary)", fontSize: "14px", fontWeight: 800 }}>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function EmptyNote({ children }: { children: React.ReactNode }) {
+  return <p style={{ color: "var(--text-muted)", fontSize: "13px", lineHeight: 1.5 }}>{children}</p>;
+}
+
+function BoardCard({ item, onOpen }: { item: WorkBoardItem; onOpen: (item: WorkBoardItem) => void }) {
   const kind = kindStyles[item.kind];
 
   return (
-    <Link
+    <button
       className="card"
-      href={item.href}
+      onClick={() => onOpen(item)}
       style={{
         borderRadius: "8px",
         padding: "14px",
@@ -124,6 +148,8 @@ function BoardCard({ item }: { item: WorkBoardItem }) {
         flexDirection: "column",
         gap: "10px",
         textDecoration: "none",
+        textAlign: "left",
+        width: "100%",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" }}>
@@ -164,7 +190,144 @@ function BoardCard({ item }: { item: WorkBoardItem }) {
         <span>Priority {item.priority}</span>
         <span>{item.updatedAt ? formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true }) : "Setup task"}</span>
       </div>
-    </Link>
+    </button>
+  );
+}
+
+function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () => void }) {
+  const kind = kindStyles[item.kind];
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={`${item.title} details`}>
+      <button
+        aria-label="Close details"
+        onClick={onClose}
+        style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0, 0, 0, 0.55)", width: "100%", height: "100%" }}
+      />
+      <aside
+        className="fixed right-0 top-0 h-full w-full max-w-2xl"
+        style={{
+          backgroundColor: "var(--surface)",
+          borderLeft: "1px solid var(--border)",
+          boxShadow: "var(--shadow-lg)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          style={{
+            padding: "20px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "16px",
+            alignItems: "flex-start",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <span className="badge" style={{ color: kind.color, backgroundColor: kind.bg }}>
+              {kind.label}
+            </span>
+            <h2 style={{ color: "var(--text-primary)", fontSize: "22px", fontWeight: 800, marginTop: "10px", lineHeight: 1.2 }}>
+              {item.title}
+            </h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "13px", marginTop: "6px" }}>{item.subtitle}</p>
+          </div>
+          <button className="btn-ghost" onClick={onClose} aria-label="Close details">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div style={{ padding: "20px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "22px" }}>
+          <DetailSection title="Next Action">
+            <div className="card" style={{ borderRadius: "8px", padding: "14px", backgroundColor: "var(--surface-elevated)" }}>
+              <p style={{ color: "var(--text-primary)", fontSize: "14px", lineHeight: 1.5 }}>{item.nextAction}</p>
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Summary">
+            <p style={{ color: "var(--text-secondary)", fontSize: "14px", lineHeight: 1.55 }}>{item.detail.summary}</p>
+          </DetailSection>
+
+          <DetailSection title="Evidence">
+            {item.detail.evidence.length === 0 ? (
+              <EmptyNote>No evidence recorded yet.</EmptyNote>
+            ) : (
+              <ul style={{ display: "flex", flexDirection: "column", gap: "8px", color: "var(--text-secondary)", fontSize: "13px", lineHeight: 1.45 }}>
+                {item.detail.evidence.map((entry) => (
+                  <li key={entry} style={{ paddingLeft: "2px" }}>
+                    {entry}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DetailSection>
+
+          <DetailSection title={item.kind === "integration" ? "Health" : "Pricing"}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {item.detail.pricing.map((entry) => (
+                <div key={`${entry.label}-${entry.value}`} className="card" style={{ borderRadius: "8px", padding: "12px", backgroundColor: "var(--surface-elevated)" }}>
+                  <p style={{ color: "var(--text-muted)", fontSize: "11px", fontWeight: 800, textTransform: "uppercase" }}>{entry.label}</p>
+                  <p style={{ color: "var(--text-primary)", fontSize: "13px", marginTop: "4px", lineHeight: 1.35 }}>{entry.value}</p>
+                </div>
+              ))}
+            </div>
+          </DetailSection>
+
+          <DetailSection title="Risk Notes">
+            {item.detail.riskNotes.length === 0 ? (
+              <EmptyNote>No risk notes recorded yet.</EmptyNote>
+            ) : (
+              <ul style={{ display: "flex", flexDirection: "column", gap: "8px", color: "var(--text-secondary)", fontSize: "13px", lineHeight: 1.45 }}>
+                {item.detail.riskNotes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            )}
+          </DetailSection>
+
+          <DetailSection title="Audit History">
+            {item.detail.auditTrail.length === 0 ? (
+              <EmptyNote>No audit entries recorded yet.</EmptyNote>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {item.detail.auditTrail.map((entry) => (
+                  <div key={`${entry.timestamp}-${entry.action}-${entry.note}`} className="card" style={{ borderRadius: "8px", padding: "12px", backgroundColor: "var(--surface-elevated)" }}>
+                    <p style={{ color: "var(--text-primary)", fontSize: "13px", fontWeight: 700 }}>{entry.action}</p>
+                    <p style={{ color: "var(--text-secondary)", fontSize: "12px", marginTop: "4px", lineHeight: 1.45 }}>{entry.note}</p>
+                    <p style={{ color: "var(--text-muted)", fontSize: "11px", marginTop: "6px" }}>
+                      {entry.timestamp ? formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true }) : "No timestamp"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </DetailSection>
+        </div>
+
+        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", gap: "10px" }}>
+          <span style={{ color: "var(--text-muted)", fontSize: "12px", alignSelf: "center" }}>Read-only local detail</span>
+          <Link className="btn-primary" href={item.href}>
+            <ExternalLink className="w-4 h-4" />
+            Open source
+          </Link>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -175,6 +338,7 @@ export default function CommerceWorkBoardPage() {
   const [query, setQuery] = useState("");
   const [laneFilter, setLaneFilter] = useState<WorkBoardLane>("all");
   const [kindFilter, setKindFilter] = useState<WorkBoardKindFilter>("all");
+  const [selectedItem, setSelectedItem] = useState<WorkBoardItem | null>(null);
 
   const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
   const stats = data?.stats ?? { openResearch: 0, reviewQueue: 0, setupBlockers: 0, readyLocalWork: 0 };
@@ -388,12 +552,13 @@ export default function CommerceWorkBoardPage() {
                   No items in this lane.
                 </div>
               ) : (
-                column.items.map((item) => <BoardCard key={item.id} item={item} />)
+                column.items.map((item) => <BoardCard key={item.id} item={item} onOpen={setSelectedItem} />)
               )}
             </div>
           ))}
         </section>
       )}
+      {selectedItem && <WorkBoardDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />}
     </div>
   );
 }
