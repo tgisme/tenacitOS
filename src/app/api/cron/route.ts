@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execSync } from "child_process";
+import fs from "fs/promises";
+import path from "path";
+
+const CRON_DATA_PATH = path.join(process.cwd(), "data", "cron-jobs.json");
+const CRON_EXAMPLE_PATH = path.join(process.cwd(), "data", "cron-jobs.example.json");
 
 // GET: List all cron jobs from the OpenClaw gateway
 export async function GET() {
@@ -37,10 +42,44 @@ export async function GET() {
     return NextResponse.json(jobs);
   } catch (error) {
     console.error("Error fetching cron jobs from gateway:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch cron jobs from OpenClaw gateway" },
-      { status: 500 }
-    );
+    const fallbackJobs = await loadLocalCronJobs();
+    return NextResponse.json(fallbackJobs);
+  }
+}
+
+async function loadLocalCronJobs() {
+  const readCronFile = async (filePath: string) => {
+    const raw = await fs.readFile(filePath, "utf-8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>[];
+
+    return parsed.map((job) => ({
+      id: job.id,
+      agentId: job.agentId || "main",
+      name: job.name || "Unnamed",
+      enabled: job.enabled ?? true,
+      createdAtMs: job.createdAtMs,
+      updatedAtMs: job.updatedAtMs,
+      schedule: job.schedule,
+      sessionTarget: job.sessionTarget || "",
+      payload: job.payload || {},
+      delivery: job.delivery || {},
+      state: job.state || {},
+      description: job.description || "",
+      scheduleDisplay: typeof job.schedule === "string" ? job.schedule : formatSchedule(job.schedule as Record<string, unknown>),
+      timezone: (job.timezone as string) || (job.schedule as Record<string, string>)?.tz || "UTC",
+      nextRun: job.nextRun || job.nextRunAt || null,
+      lastRun: job.lastRun || job.lastRunAt || null,
+    }));
+  };
+
+  try {
+    return await readCronFile(CRON_DATA_PATH);
+  } catch {
+    try {
+      return await readCronFile(CRON_EXAMPLE_PATH);
+    } catch {
+      return [];
+    }
   }
 }
 
