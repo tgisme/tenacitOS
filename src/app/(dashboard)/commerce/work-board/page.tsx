@@ -86,6 +86,17 @@ const kindOptions: Array<{ id: WorkBoardKindFilter; label: string }> = [
   { id: "integration", label: "Setup" },
 ];
 
+const laneIds = new Set<WorkBoardLane>(laneOptions.map((option) => option.id));
+const kindIds = new Set<WorkBoardKindFilter>(kindOptions.map((option) => option.id));
+
+function isLaneFilter(value: string | null): value is WorkBoardLane {
+  return value !== null && laneIds.has(value as WorkBoardLane);
+}
+
+function isKindFilter(value: string | null): value is WorkBoardKindFilter {
+  return value !== null && kindIds.has(value as WorkBoardKindFilter);
+}
+
 function MetricTile({
   icon: Icon,
   label,
@@ -382,6 +393,7 @@ export default function CommerceWorkBoardPage() {
   const [laneFilter, setLaneFilter] = useState<WorkBoardLane>("all");
   const [kindFilter, setKindFilter] = useState<WorkBoardKindFilter>("all");
   const [selectedItem, setSelectedItem] = useState<WorkBoardItem | null>(null);
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   const columns = useMemo(() => data?.columns ?? [], [data?.columns]);
   const stats = data?.stats ?? { openResearch: 0, reviewQueue: 0, setupBlockers: 0, readyLocalWork: 0 };
@@ -429,6 +441,43 @@ export default function CommerceWorkBoardPage() {
   useEffect(() => {
     loadBoard();
   }, [loadBoard]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const nextQuery = params.get("q") ?? "";
+    const nextLane = params.get("lane");
+    const nextKind = params.get("type");
+
+    setQuery(nextQuery);
+    setLaneFilter(isLaneFilter(nextLane) ? nextLane : "all");
+    setKindFilter(isKindFilter(nextKind) ? nextKind : "all");
+    setFiltersLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersLoaded) return;
+
+    const url = new URL(window.location.href);
+    if (query.trim()) {
+      url.searchParams.set("q", query.trim());
+    } else {
+      url.searchParams.delete("q");
+    }
+
+    if (laneFilter === "all") {
+      url.searchParams.delete("lane");
+    } else {
+      url.searchParams.set("lane", laneFilter);
+    }
+
+    if (kindFilter === "all") {
+      url.searchParams.delete("type");
+    } else {
+      url.searchParams.set("type", kindFilter);
+    }
+
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [filtersLoaded, kindFilter, laneFilter, query]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
