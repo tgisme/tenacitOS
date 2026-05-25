@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
-import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { createOrFindCommerceTask } from "@/lib/commerce-work-board-tasks";
 
 type ProductStatus =
   | "researching"
@@ -148,26 +148,6 @@ const APPROVALS_PATH = path.join(process.cwd(), "data", "commerce-approvals.json
 const APPROVALS_EXAMPLE_PATH = path.join(process.cwd(), "data", "commerce-approvals.example.json");
 const INTEGRATIONS_PATH = path.join(process.cwd(), "data", "commerce-integrations.json");
 const INTEGRATIONS_EXAMPLE_PATH = path.join(process.cwd(), "data", "commerce-integrations.example.json");
-const TASKS_PATH = path.join(process.cwd(), "data", "tasks.json");
-
-interface LocalTask {
-  id: string;
-  name: string;
-  schedule: string | null;
-  timezone: string;
-  description: string;
-  lastStatus: string;
-  nextRun: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-  source?: {
-    type: string;
-    itemId: string;
-    kind: WorkBoardItem["kind"];
-    href: string;
-  };
-  metadata?: Record<string, unknown>;
-}
 
 async function readJson<T>(dataPath: string, examplePath: string, fallback: T): Promise<T> {
   try {
@@ -516,57 +496,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing queue item fields" }, { status: 400 });
     }
 
-    const tasks = await loadLocalTasks();
-    const existing = tasks.find((task) => task.source?.type === "commerce-work-board" && task.source.itemId === item.id && task.lastStatus !== "done");
+    const result = await createOrFindCommerceTask(item);
 
-    if (existing) {
-      return NextResponse.json({ task: existing, created: false });
-    }
-
-    const now = new Date().toISOString();
-    const task: LocalTask = {
-      id: `commerce-${randomUUID()}`,
-      name: `Commerce: ${item.title}`,
-      schedule: null,
-      timezone: "UTC",
-      description: [
-        item.nextAction,
-        item.subtitle ? `Context: ${item.subtitle}` : "",
-        item.status ? `Status: ${item.status}` : "",
-      ].filter(Boolean).join("\n"),
-      lastStatus: "todo",
-      nextRun: null,
-      createdAt: now,
-      updatedAt: now,
-      source: {
-        type: "commerce-work-board",
-        itemId: item.id,
-        kind: item.kind,
-        href: item.href,
-      },
-      metadata: {
-        priority: item.priority ?? 0,
-        meta: Array.isArray(item.meta) ? item.meta : [],
-        externalActionBlocked: true,
-      },
-    };
-
-    tasks.unshift(task);
-    await fs.mkdir(path.dirname(TASKS_PATH), { recursive: true });
-    await fs.writeFile(TASKS_PATH, `${JSON.stringify(tasks, null, 2)}\n`);
-
-    return NextResponse.json({ task, created: true }, { status: 201 });
+    return NextResponse.json(result, { status: result.created ? 201 : 200 });
   } catch (error) {
     console.error("[commerce-work-board] Failed to create local task:", error);
     return NextResponse.json({ error: "Failed to create local commerce task" }, { status: 500 });
-  }
-}
-
-async function loadLocalTasks(): Promise<LocalTask[]> {
-  try {
-    const parsed = JSON.parse(await fs.readFile(TASKS_PATH, "utf-8")) as LocalTask[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
   }
 }
