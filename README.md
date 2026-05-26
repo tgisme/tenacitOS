@@ -19,7 +19,16 @@ A real-time dashboard and control center for [OpenClaw](https://openclaw.ai) AI 
 - **🔔 Notifications** — Real-time notification center with unread badge
 - **🏢 Office 3D** — Interactive 3D office with one desk per agent (React Three Fiber)
 - **📺 Terminal** — Read-only terminal for safe status commands
+- **🛒 Commerce Studio** — Local-first commerce planning with product ideas, trend briefs, approvals, integrations, and a Work Board
 - **🔐 Auth** — Password-protected with rate limiting and secure cookie
+
+---
+
+## Current Project Notes
+
+TenacitOS is being shaped into a personal OpenClaw mission-control surface first, with the commerce workflow as the current active product direction. The commerce tools are intentionally local-only right now: they can track research, product ideas, approvals, setup blockers, and local tasks, but they do not publish listings, spend money, place orders, or change a real shop.
+
+For lightweight update notes, see [docs/UPDATE-NOTES.md](./docs/UPDATE-NOTES.md).
 
 ---
 
@@ -129,6 +138,10 @@ cp data/activities.example.json data/activities.json
 cp data/notifications.example.json data/notifications.json
 cp data/configured-skills.example.json data/configured-skills.json
 cp data/tasks.example.json data/tasks.json
+cp data/commerce-products.example.json data/commerce-products.json
+cp data/commerce-trends.example.json data/commerce-trends.json
+cp data/commerce-approvals.example.json data/commerce-approvals.json
+cp data/commerce-integrations.example.json data/commerce-integrations.json
 ```
 
 ### 4. Generate secrets
@@ -367,7 +380,7 @@ chmod +x scripts/*.sh
 
 | Layer | Tech |
 |---|---|
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | UI | React 19 + Tailwind CSS v4 |
 | 3D | React Three Fiber + Drei |
 | Charts | Recharts |
