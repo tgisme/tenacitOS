@@ -43,6 +43,7 @@ interface WorkBoardItem {
   priority: number;
   meta: string[];
   detail: WorkBoardDetail;
+  localTask?: LocalCommerceTask | null;
 }
 
 interface WorkBoardColumn {
@@ -165,6 +166,7 @@ function formatTaskId(id: string) {
 
 function BoardCard({ item, onOpen }: { item: WorkBoardItem; onOpen: (item: WorkBoardItem) => void }) {
   const kind = kindStyles[item.kind];
+  const hasLocalTask = Boolean(item.localTask);
 
   return (
     <button
@@ -192,6 +194,11 @@ function BoardCard({ item, onOpen }: { item: WorkBoardItem; onOpen: (item: WorkB
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+        {hasLocalTask && (
+          <span className="badge" style={{ backgroundColor: "var(--positive-soft)", color: "var(--positive)" }}>
+            Task exists
+          </span>
+        )}
         <span className="badge" style={{ backgroundColor: "var(--surface-elevated)", color: "var(--text-secondary)" }}>
           {item.status}
         </span>
@@ -226,7 +233,9 @@ function BoardCard({ item, onOpen }: { item: WorkBoardItem; onOpen: (item: WorkB
 function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () => void }) {
   const kind = kindStyles[item.kind];
   const [isCreatingTask, setIsCreatingTask] = useState(false);
-  const [taskAction, setTaskAction] = useState<TaskActionState | null>(null);
+  const [taskAction, setTaskAction] = useState<TaskActionState | null>(
+    item.localTask ? { status: "existing", task: item.localTask } : null,
+  );
   const taskSearchHref = taskAction?.status === "created" || taskAction?.status === "existing"
     ? `/search?q=${encodeURIComponent(taskAction.task.name || taskAction.task.id)}`
     : null;
@@ -261,9 +270,9 @@ function WorkBoardDrawer({ item, onClose }: { item: WorkBoardItem; onClose: () =
   };
 
   useEffect(() => {
-    setTaskAction(null);
+    setTaskAction(item.localTask ? { status: "existing", task: item.localTask } : null);
     setIsCreatingTask(false);
-  }, [item.id]);
+  }, [item.id, item.localTask]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

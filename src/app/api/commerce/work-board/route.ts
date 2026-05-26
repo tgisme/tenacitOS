@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
-import { createOrFindCommerceTask } from "@/lib/commerce-work-board-tasks";
+import { createOrFindCommerceTask, findOpenCommerceTaskForItem, loadLocalTasks } from "@/lib/commerce-work-board-tasks";
 
 type ProductStatus =
   | "researching"
@@ -119,6 +119,16 @@ interface WorkBoardDetail {
   auditTrail: Array<{ timestamp: string | null; action: string; note: string }>;
 }
 
+interface LocalCommerceTask {
+  id: string;
+  name: string;
+  lastStatus?: string;
+  updatedAt?: string;
+  source?: {
+    href?: string;
+  };
+}
+
 interface WorkBoardItem {
   id: string;
   kind: "trend" | "product" | "approval" | "integration";
@@ -131,6 +141,7 @@ interface WorkBoardItem {
   priority: number;
   meta: string[];
   detail: WorkBoardDetail;
+  localTask?: LocalCommerceTask | null;
 }
 
 interface WorkBoardColumn {
@@ -230,23 +241,28 @@ function sortByPriority(items: WorkBoardItem[]) {
 
 export async function GET() {
   try {
-    const [productStore, trendStore, approvalStore, integrationStore] = await Promise.all([
+    const [productStore, trendStore, approvalStore, integrationStore, localTasks] = await Promise.all([
       readJson<{ products?: ProductSummary[] }>(PRODUCTS_PATH, PRODUCTS_EXAMPLE_PATH, { products: [] }),
       readJson<{ briefs?: TrendSummary[] }>(TRENDS_PATH, TRENDS_EXAMPLE_PATH, { briefs: [] }),
       readJson<{ records?: ApprovalSummary[] }>(APPROVALS_PATH, APPROVALS_EXAMPLE_PATH, { records: [] }),
       readJson<{ providers?: IntegrationSummary[] }>(INTEGRATIONS_PATH, INTEGRATIONS_EXAMPLE_PATH, { providers: [] }),
+      loadLocalTasks(),
     ]);
 
     const products = Array.isArray(productStore.products) ? productStore.products : [];
     const trends = Array.isArray(trendStore.briefs) ? trendStore.briefs : [];
     const approvals = Array.isArray(approvalStore.records) ? approvalStore.records : [];
     const integrations = Array.isArray(integrationStore.providers) ? integrationStore.providers : [];
+    const withLocalTask = (item: WorkBoardItem): WorkBoardItem => ({
+      ...item,
+      localTask: findOpenCommerceTaskForItem(localTasks, item) ?? null,
+    });
 
     const researchItems: WorkBoardItem[] = trends
       .filter((trend) => ["watching", "promising"].includes(trend.status))
       .map((trend) => ({
         id: `trend-${trend.id}`,
-        kind: "trend",
+        kind: "trend" as const,
         title: asString(trend.title, "Untitled trend"),
         status: trend.status,
         subtitle: asString(trend.niche, "Uncategorized"),
@@ -275,13 +291,14 @@ export async function GET() {
           ],
           auditTrail: normalizeAuditTrail(trend.auditTrail),
         },
-      }));
+      }))
+      .map(withLocalTask);
 
     const productReviewItems: WorkBoardItem[] = products
       .filter((product) => ["proposed", "listing-ready", "needs-review", "revision"].includes(product.status))
       .map((product) => ({
         id: `product-${product.id}`,
-        kind: "product",
+        kind: "product" as const,
         title: asString(product.title, "Untitled product"),
         status: product.status,
         subtitle: `${asString(product.niche, "Uncategorized")} · ${asString(product.sourceAgent, "Manual entry")}`,
@@ -314,13 +331,14 @@ export async function GET() {
           ],
           auditTrail: normalizeAuditTrail(product.auditTrail),
         },
-      }));
+      }))
+      .map(withLocalTask);
 
     const approvalItems: WorkBoardItem[] = approvals
       .filter((approval) => ["requested", "needs-revision"].includes(approval.status))
       .map((approval) => ({
         id: `approval-${approval.id}`,
-        kind: "approval",
+        kind: "approval" as const,
         title: asString(approval.productTitle, "Untitled product"),
         status: approval.status,
         subtitle: asString(approval.requestedAction, "Review requested"),
@@ -343,13 +361,14 @@ export async function GET() {
           ],
           auditTrail: normalizeAuditTrail(approval.auditTrail),
         },
-      }));
+      }))
+      .map(withLocalTask);
 
     const setupItems: WorkBoardItem[] = integrations
       .filter((provider) => provider.status !== "healthy")
       .map((provider) => ({
         id: `integration-${provider.id}`,
-        kind: "integration",
+        kind: "integration" as const,
         title: asString(provider.name, "Unknown provider"),
         status: provider.status,
         subtitle: asString(provider.nextStep, "Configure provider"),
@@ -373,7 +392,8 @@ export async function GET() {
           ],
           auditTrail: [],
         },
-      }));
+      }))
+      .map(withLocalTask);
 
     const readyItems: WorkBoardItem[] = [
       ...products
@@ -413,7 +433,8 @@ export async function GET() {
             ],
             auditTrail: normalizeAuditTrail(product.auditTrail),
           },
-        })),
+        }))
+        .map(withLocalTask),
       ...approvals
         .filter((approval) => ["approved", "executed-locally"].includes(approval.status))
         .map((approval) => ({
@@ -441,7 +462,8 @@ export async function GET() {
             ],
             auditTrail: normalizeAuditTrail(approval.auditTrail),
           },
-        })),
+        }))
+        .map(withLocalTask),
     ];
 
     const columns: WorkBoardColumn[] = [

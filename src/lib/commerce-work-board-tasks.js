@@ -42,14 +42,18 @@ export function createCommerceTaskFromItem(item, now = new Date()) {
   };
 }
 
-export async function createOrFindCommerceTask(item, tasksPath = TASKS_PATH, now = new Date()) {
-  const tasks = await loadLocalTasks(tasksPath);
-  const existing = tasks.find(
+export function findOpenCommerceTaskForItem(tasks, item) {
+  return tasks.find(
     (task) =>
       task.source?.type === "commerce-work-board" &&
       task.source.itemId === item.id &&
       task.lastStatus !== "done",
   );
+}
+
+export async function createOrFindCommerceTask(item, tasksPath = TASKS_PATH, now = new Date()) {
+  const tasks = await loadLocalTasks(tasksPath);
+  const existing = findOpenCommerceTaskForItem(tasks, item);
 
   if (existing) {
     return { task: existing, created: false };

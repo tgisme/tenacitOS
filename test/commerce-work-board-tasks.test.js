@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createOrFindCommerceTask } from "../src/lib/commerce-work-board-tasks.js";
+import { createOrFindCommerceTask, findOpenCommerceTaskForItem } from "../src/lib/commerce-work-board-tasks.js";
 
 const queueItem = {
   id: "product-local-mug",
@@ -68,6 +68,56 @@ test("returns an existing open commerce task instead of creating a duplicate", a
     assert.equal(second.task.id, first.task.id);
     assert.equal(saved.length, 1);
   });
+});
+
+test("finds an existing open commerce task for a work board item", () => {
+  const tasks = [
+    {
+      id: "done-task",
+      lastStatus: "done",
+      source: {
+        type: "commerce-work-board",
+        itemId: "product-local-mug",
+      },
+    },
+    {
+      id: "open-task",
+      lastStatus: "todo",
+      source: {
+        type: "commerce-work-board",
+        itemId: "product-local-mug",
+      },
+    },
+    {
+      id: "other-task",
+      lastStatus: "todo",
+      source: {
+        type: "commerce-work-board",
+        itemId: "product-other",
+      },
+    },
+  ];
+
+  const existing = findOpenCommerceTaskForItem(tasks, queueItem);
+
+  assert.equal(existing.id, "open-task");
+});
+
+test("does not treat completed commerce tasks as existing open work", () => {
+  const tasks = [
+    {
+      id: "done-task",
+      lastStatus: "done",
+      source: {
+        type: "commerce-work-board",
+        itemId: "product-local-mug",
+      },
+    },
+  ];
+
+  const existing = findOpenCommerceTaskForItem(tasks, queueItem);
+
+  assert.equal(existing, undefined);
 });
 
 test("creates a new task when the matching commerce task is already done", async () => {
