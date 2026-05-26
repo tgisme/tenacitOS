@@ -19,6 +19,7 @@ Lightweight project notes for active TenacitOS work. Keep this file practical: w
 - Commerce data currently lives in gitignored JSON files under `data/`.
 - Example files are committed for products, trend briefs, approvals, and integrations.
 - Runtime files should be initialized from the examples before local use.
+- Added `docs/COMMERCE.md` as the stable operating guide for commerce workflow, data files, statuses, Work Board behavior, and guardrails.
 
 ### Guardrails
 
@@ -28,7 +29,5 @@ Lightweight project notes for active TenacitOS work. Keep this file practical: w
 
 ## Next Useful Steps
 
-- Add API-level tests around `GET /api/commerce/work-board` so `localTask` detection is covered at the route response level.
 - Add a small Work Board screenshot after the UI settles.
 - Document the commerce JSON schemas once the fields stop moving.
-- Consider a short `docs/COMMERCE.md` if the commerce workflow grows beyond these notes.

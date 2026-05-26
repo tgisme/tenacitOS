@@ -28,7 +28,7 @@ A real-time dashboard and control center for [OpenClaw](https://openclaw.ai) AI 
 
 TenacitOS is being shaped into a personal OpenClaw mission-control surface first, with the commerce workflow as the current active product direction. The commerce tools are intentionally local-only right now: they can track research, product ideas, approvals, setup blockers, and local tasks, but they do not publish listings, spend money, place orders, or change a real shop.
 
-For lightweight update notes, see [docs/UPDATE-NOTES.md](./docs/UPDATE-NOTES.md).
+For the stable commerce workflow guide, see [docs/COMMERCE.md](./docs/COMMERCE.md). For lightweight update notes, see [docs/UPDATE-NOTES.md](./docs/UPDATE-NOTES.md).
 
 ---
 
