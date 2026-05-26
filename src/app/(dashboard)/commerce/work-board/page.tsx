@@ -22,6 +22,7 @@ import { formatDistanceToNow } from "date-fns";
 type WorkBoardKind = "trend" | "product" | "approval" | "integration";
 type WorkBoardLane = "all" | "research" | "review" | "setup" | "ready";
 type WorkBoardKindFilter = "all" | WorkBoardKind;
+type WorkBoardQuickFilter = "all" | "needs-review" | "has-task" | "blocked" | "ready-local";
 
 interface WorkBoardDetail {
   summary: string;
@@ -101,8 +102,18 @@ const kindOptions: Array<{ id: WorkBoardKindFilter; label: string }> = [
   { id: "integration", label: "Setup" },
 ];
 
+const quickFilterOptions: Array<{ id: WorkBoardQuickFilter; label: string }> = [
+  { id: "all", label: "All work" },
+  { id: "needs-review", label: "Needs review" },
+  { id: "has-task", label: "Has task" },
+  { id: "blocked", label: "Blocked" },
+  { id: "ready-local", label: "Ready local" },
+];
+
 const laneIds = new Set<WorkBoardLane>(laneOptions.map((option) => option.id));
 const kindIds = new Set<WorkBoardKindFilter>(kindOptions.map((option) => option.id));
+const quickFilterIds = new Set<WorkBoardQuickFilter>(quickFilterOptions.map((option) => option.id));
+const reviewStatuses = new Set(["proposed", "listing-ready", "needs-review", "revision", "requested", "needs-revision"]);
 
 function isLaneFilter(value: string | null): value is WorkBoardLane {
   return value !== null && laneIds.has(value as WorkBoardLane);
@@ -110,6 +121,19 @@ function isLaneFilter(value: string | null): value is WorkBoardLane {
 
 function isKindFilter(value: string | null): value is WorkBoardKindFilter {
   return value !== null && kindIds.has(value as WorkBoardKindFilter);
+}
+
+function isQuickFilter(value: string | null): value is WorkBoardQuickFilter {
+  return value !== null && quickFilterIds.has(value as WorkBoardQuickFilter);
+}
+
+function matchesQuickFilter(item: WorkBoardItem, columnId: WorkBoardColumn["id"], quickFilter: WorkBoardQuickFilter) {
+  if (quickFilter === "all") return true;
+  if (quickFilter === "needs-review") return columnId === "review" || reviewStatuses.has(item.status);
+  if (quickFilter === "has-task") return Boolean(item.localTask);
+  if (quickFilter === "blocked") return columnId === "setup" || item.kind === "integration" || item.meta.some((meta) => meta.toLowerCase().includes("blocked"));
+  if (quickFilter === "ready-local") return columnId === "ready";
+  return true;
 }
 
 function MetricTile({
@@ -482,6 +506,7 @@ export default function CommerceWorkBoardPage() {
   const [query, setQuery] = useState("");
   const [laneFilter, setLaneFilter] = useState<WorkBoardLane>("all");
   const [kindFilter, setKindFilter] = useState<WorkBoardKindFilter>("all");
+  const [quickFilter, setQuickFilter] = useState<WorkBoardQuickFilter>("all");
   const [selectedItem, setSelectedItem] = useState<WorkBoardItem | null>(null);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
@@ -489,7 +514,17 @@ export default function CommerceWorkBoardPage() {
   const stats = data?.stats ?? { openResearch: 0, reviewQueue: 0, setupBlockers: 0, readyLocalWork: 0 };
   const totalItems = columns.reduce((count, column) => count + column.items.length, 0);
   const normalizedQuery = query.trim().toLowerCase();
-  const hasFilters = normalizedQuery.length > 0 || laneFilter !== "all" || kindFilter !== "all";
+  const hasFilters = normalizedQuery.length > 0 || laneFilter !== "all" || kindFilter !== "all" || quickFilter !== "all";
+  const quickFilterCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        quickFilterOptions.map((option) => [
+          option.id,
+          columns.reduce((count, column) => count + column.items.filter((item) => matchesQuickFilter(item, column.id, option.id)).length, 0),
+        ]),
+      ) as Record<WorkBoardQuickFilter, number>,
+    [columns],
+  );
   const filteredColumns = useMemo(
     () =>
       columns
@@ -498,6 +533,7 @@ export default function CommerceWorkBoardPage() {
           ...column,
           items: column.items.filter((item) => {
             const matchesKind = kindFilter === "all" || item.kind === kindFilter;
+            const matchesQuick = matchesQuickFilter(item, column.id, quickFilter);
             const searchableText = [
               item.title,
               item.subtitle,
@@ -507,10 +543,10 @@ export default function CommerceWorkBoardPage() {
             ].join(" ").toLowerCase();
             const matchesQuery = normalizedQuery.length === 0 || searchableText.includes(normalizedQuery);
 
-            return matchesKind && matchesQuery;
+            return matchesKind && matchesQuick && matchesQuery;
           }),
         })),
-    [columns, kindFilter, laneFilter, normalizedQuery],
+    [columns, kindFilter, laneFilter, normalizedQuery, quickFilter],
   );
   const visibleItems = filteredColumns.reduce((count, column) => count + column.items.length, 0);
 
@@ -537,10 +573,12 @@ export default function CommerceWorkBoardPage() {
     const nextQuery = params.get("q") ?? "";
     const nextLane = params.get("lane");
     const nextKind = params.get("type");
+    const nextFocus = params.get("focus");
 
     setQuery(nextQuery);
     setLaneFilter(isLaneFilter(nextLane) ? nextLane : "all");
     setKindFilter(isKindFilter(nextKind) ? nextKind : "all");
+    setQuickFilter(isQuickFilter(nextFocus) ? nextFocus : "all");
     setFiltersLoaded(true);
   }, []);
 
@@ -566,8 +604,14 @@ export default function CommerceWorkBoardPage() {
       url.searchParams.set("type", kindFilter);
     }
 
+    if (quickFilter === "all") {
+      url.searchParams.delete("focus");
+    } else {
+      url.searchParams.set("focus", quickFilter);
+    }
+
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [filtersLoaded, kindFilter, laneFilter, query]);
+  }, [filtersLoaded, kindFilter, laneFilter, query, quickFilter]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -622,6 +666,31 @@ export default function CommerceWorkBoardPage() {
           alignItems: "center",
         }}
       >
+        <div
+          className="toggle-group"
+          aria-label="Work board focus"
+          style={{
+            flex: "1 1 100%",
+            flexWrap: "wrap",
+            overflow: "visible",
+            borderRadius: "8px",
+          }}
+        >
+          {quickFilterOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={quickFilter === option.id ? "active" : ""}
+              onClick={() => setQuickFilter(option.id)}
+              aria-pressed={quickFilter === option.id}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", minHeight: "34px" }}
+            >
+              {option.label}
+              <span style={{ opacity: quickFilter === option.id ? 0.9 : 0.7 }}>{quickFilterCounts[option.id]}</span>
+            </button>
+          ))}
+        </div>
+
         <label style={{ position: "relative", minWidth: "220px", flex: "1 1 280px" }}>
           <Search
             className="w-4 h-4"
@@ -679,6 +748,7 @@ export default function CommerceWorkBoardPage() {
                 setQuery("");
                 setLaneFilter("all");
                 setKindFilter("all");
+                setQuickFilter("all");
               }}
             >
               <Filter className="w-4 h-4" />
